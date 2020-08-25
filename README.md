@@ -1,6 +1,11 @@
 # COVID-19-Change-Point-Detection
 Code for COVID-19 project.
 
+## Simulation
+
+Code for reproduce simulation results can be found in the [simulation.R](simulation.R). 
+
+## Real data
 
 #### State-Level 
 
