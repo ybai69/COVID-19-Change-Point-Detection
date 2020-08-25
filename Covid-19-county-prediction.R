@@ -22,17 +22,21 @@ sourceCpp("functions_BFL.cpp")
 ## data extracted from New York Times county-level data obtained from following Github repository
 # https://github.com/nytimes/covid-19-data
 # load nyt case data
-data.counties <- as.data.frame(data.table::fread("https://raw.githubusercontent.com/nytimes/covid-19-data/master/us-counties.csv"))
+# data.counties <- as.data.frame(data.table::fread("https://raw.githubusercontent.com/nytimes/covid-19-data/master/us-counties.csv"))
 # use the data after March
-data.counties<- data.counties[as.Date(data.counties$date) >= as.Date('2020-03-01'),]
-data.counties <- data.counties[as.Date(data.counties$date) <= as.Date('2020-08-18'),]
-print("last updated date:"); print(max(data.counties$date))
+# data.counties<- data.counties[as.Date(data.counties$date) >= as.Date('2020-03-01'),]
+# data.counties <- data.counties[as.Date(data.counties$date) <= as.Date('2020-08-18'),]
+data.counties <- read.csv("counties.csv", header = TRUE)
+data.counties$date <-  as.Date(data.counties$date)
+
 
 # population data extracted from NATIONAL BUREAU OF ECONOMIC RESEARCH
-counties.population <- as.data.frame(data.table::fread("https://www2.census.gov/programs-surveys/popest/datasets/2010-2019/counties/totals/co-est2019-alldata.csv"))
+# counties.population <- as.data.frame(data.table::fread("https://www2.census.gov/programs-surveys/popest/datasets/2010-2019/counties/totals/co-est2019-alldata.csv"))
+counties.population <- read.csv("co-est2019-alldata.csv", header = TRUE)
 counties.population <- counties.population[, c("STNAME", "CTYNAME", "POPESTIMATE2019")]
 # distance data extracted from US Census Bureau 
-counties.distance.100 <- as.data.frame(data.table::fread("http://data.nber.org/distance/2010/sf1/county/sf12010countydistance100miles.csv"))
+# counties.distance.100 <- as.data.frame(data.table::fread("http://data.nber.org/distance/2010/sf1/county/sf12010countydistance100miles.csv"))
+counties.distance.100<-read.csv("sf12010countydistance100miles.csv", header = TRUE)
 
 
 #########Change the county name, state name, lockdown date and reopen date below!!!!!!
