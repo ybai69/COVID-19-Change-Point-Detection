@@ -13,7 +13,7 @@ State-level population data is extracted from [National Bureau of Economic Resea
 
 
 
-State-level distance data can be found in the [US Census Bureau](http://data.nber.org/distance/2010/sf1/state/sf12010statedistancemiles.csv")
+State-level distance data can be found in the [US Census Bureau](http://data.nber.org/distance/2010/sf1/state/sf12010statedistancemiles.csv)
 
 
 #### County-Level 
