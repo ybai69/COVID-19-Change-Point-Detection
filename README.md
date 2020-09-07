@@ -1,5 +1,5 @@
-# COVID-19-Change-Point-Detection
-Code for COVID-19 project.
+# Non-stationary Spatio-Temporal Modeling of COVID-19 Progression in The U.S.
+Code for ``Non-stationary Spatio-Temporal Modeling of COVID-19 Progression in The U.S.''.
 
 ## Simulation
 
@@ -9,9 +9,9 @@ Code for reproduce simulation results can be found in the [simulation.R](simulat
 
 #### State-Level 
 
-Code for reproduce state-level results can be found in the [state.R](Covid-19-state.R)  and [state-prediction.R](Covid-19-state-prediction.R). 
+Code for reproduce state-level results can be found in the [Covid-19-stat.R](Covid-19-state.R)  and [Covid-19-state-prediction.R](Covid-19-state-prediction.R). 
 
-[State-level COVID-19 data](states.csv) can be found in the [New York times repository](https://raw.githubusercontent.com/nytimes/covid-19-data/master/us-states.csv)
+Latest version of [State-level COVID-19 data](states-08-18.csv) can be found in the [New York times repository](https://raw.githubusercontent.com/nytimes/covid-19-data/master/us-states.csv)
 
 
 [State-level population data](co-est2019-alldata.csv) is extracted from [National Bureau of Economic Research](https://www2.census.gov/programs-surveys/popest/datasets/2010-2019/counties/totals/co-est2019-alldata.csv)
@@ -22,9 +22,9 @@ Code for reproduce state-level results can be found in the [state.R](Covid-19-st
 
 #### County-Level 
 
-Code for reproduce county-level results can be found in the [county.R](Covid-19-county.R)  and [county-prediction.R](Covid-19-county-prediction.R). 
+Code for reproduce county-level results can be found in the [Covid-19-county.R](Covid-19-county.R)  and [Covid-19-county-prediction.R](Covid-19-county-prediction.R). 
 
-[County-level  COVID-19](counties.csv) data can be found in the [New York times repository](https://raw.githubusercontent.com/nytimes/covid-19-data/master/us-counties.csv)
+Latest version of [County-level  COVID-19](counties.csv) data can be found in the [New York times repository](https://raw.githubusercontent.com/nytimes/covid-19-data/master/us-counties.csv)
 
 
 [County-level population data](co-est2019-alldata.csv)is extracted from [National Bureau of Economic Research](https://www2.census.gov/programs-surveys/popest/datasets/2010-2019/counties/totals/co-est2019-alldata.csv)
