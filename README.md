@@ -3,7 +3,7 @@ This repository contains code to reproduce the results in ``Non-stationary Spati
 
 ## Simulation
 
-Code for reproduce simulation results can be found in the [simulation.R](simulation.R). 
+Code to reproduce simulation results can be found in the [simulation.R](simulation.R). 
 
 ## Real data
 
@@ -12,7 +12,7 @@ We provide an [Example](Example.pdf) of COVID-19 data analysis for US states.
 
 #### State-Level 
 
-Code for reproduce state-level results can be found in the [Covid-19-stat.R](Covid-19-state.R)  and [Covid-19-state-prediction.R](Covid-19-state-prediction.R). 
+Code to reproduce state-level results can be found in the [Covid-19-stat.R](Covid-19-state.R)  and [Covid-19-state-prediction.R](Covid-19-state-prediction.R). 
 
 Latest version of [State-level COVID-19 data](states-08-18.csv) can be found in the [New York times repository](https://raw.githubusercontent.com/nytimes/covid-19-data/master/us-states.csv)
 
@@ -25,7 +25,7 @@ Latest version of [State-level COVID-19 data](states-08-18.csv) can be found in 
 
 #### County-Level 
 
-Code for reproduce county-level results can be found in the [Covid-19-county.R](Covid-19-county.R)  and [Covid-19-county-prediction.R](Covid-19-county-prediction.R). 
+Code to reproduce county-level results can be found in the [Covid-19-county.R](Covid-19-county.R)  and [Covid-19-county-prediction.R](Covid-19-county-prediction.R). 
 
 Latest version of [County-level  COVID-19](counties.csv) data can be found in the [New York times repository](https://raw.githubusercontent.com/nytimes/covid-19-data/master/us-counties.csv)
 
