@@ -64,20 +64,20 @@ if(sim == 1){
 
 ##################################
 # number of replicates
-N <- 100
+N <- 3
 
 lm.res <- vector("list", N); var.coef.res <- vector("list", N); 
 
 Y.std.res <- vector("list", N); neighbor.std.res <- vector("list", N);
 
 pts.final <- vector("list", N);
+MRPE_1_Delta.final <- rep(0, N); MRPE_1_I_Delta.final <- rep(0, N); MRPE_1_R_Delta.final <- rep(0, N); 
 MRPE_2_Delta.final <- rep(0, N); MRPE_2_I_Delta.final <- rep(0, N); MRPE_2_R_Delta.final <- rep(0, N); 
 MRPE_3_Delta.final <- rep(0, N); MRPE_3_I_Delta.final <- rep(0, N); MRPE_3_R_Delta.final <- rep(0, N); 
-MRPE_4_Delta.final <- rep(0, N); MRPE_4_I_Delta.final <- rep(0, N); MRPE_4_R_Delta.final <- rep(0, N); 
 
+MRPE_1.final <- rep(0, N); MRPE_1_I.final <- rep(0, N); MRPE_1_R.final <- rep(0, N); 
 MRPE_2.final <- rep(0, N); MRPE_2_I.final <- rep(0, N); MRPE_2_R.final <- rep(0, N); 
 MRPE_3.final <- rep(0, N); MRPE_3_I.final <- rep(0, N); MRPE_3_R.final <- rep(0, N); 
-MRPE_4.final <- rep(0, N); MRPE_4_I.final <- rep(0, N); MRPE_4_R.final <- rep(0, N); 
 
 
 for ( j.1 in 1:N){
@@ -148,7 +148,6 @@ for ( j.1 in 1:N){
         plot(1:T, I)
         plot(1:T, R)
     }
-    
     if( sim %in% c(3)){
         q.t <- 1; p <- 2
         phi.full <- matrix(0, p, p)
@@ -443,17 +442,16 @@ for ( j.1 in 1:N){
     if(sim == 2){
         cp <- c(1, temp$cp.final, n + 1)
         m <- length(cp) - 1
-        X.new.3 <- matrix(0, nrow = n, ncol = m*p.x + 1)
+        X.new.2 <- matrix(0, nrow = n, ncol = m*p.x + 1)
         for(i in 1:m){
-            X.new.3[cp[i]: (cp[i+1]-1), (p.x*(i-1)+1) : (p.x*i) ] <- X[cp[i]: (cp[i+1]-1), ]
+            X.new.2[cp[i]: (cp[i+1]-1), (p.x*(i-1)+1) : (p.x*i) ] <- X[cp[i]: (cp[i+1]-1), ]
         }
-        X.new.3[, m*p.x + 1] <- Z
+        X.new.2[, m*p.x + 1] <- Z
         
-        est.3 <- lm(Y ~ X.new.3  - 1)
-        #fitted data in tranining set
-        Y.hat.3 <- est.3$fitted.values
-        summary(est.3)
-        lm.res[[j.1]] <- est.3
+        est.2 <- lm(Y ~ X.new.2  - 1)
+        Y.hat.2 <- est.2$fitted.values
+        summary(est.2)
+        lm.res[[j.1]] <- est.2
     }
     
     if(sim == 3){
@@ -465,16 +463,61 @@ for ( j.1 in 1:N){
             X.new.new[cp[i]: (cp[i+1]-1), (p.x*(i-1)+1) : (p.x*i) ] <- X.train[cp[i]: (cp[i+1]-1), ]
         }
         
-        est.2 <- lm(Y.train ~ X.new.new  - 1)
-        summary(est.2 )
+        est.1 <- lm(Y.train ~ X.new.new  - 1)
+        summary(est.1 )
         
-        Y.hat.2 <- est.2$fitted.values
+        Y.hat.1 <- est.1$fitted.values
         
         Y.temp <- Y.train[cp[m]: (n), ]
         X.temp <- X.train[cp[m]: (n), ]
         est.temp <- lm(Y.temp ~ X.temp  - 1)
         est.temp
-        Y.hat.2.new <- X.test%*%c(est.temp$coefficients) 
+        Y.hat.1.new <- X.test%*%c(est.temp$coefficients) 
+        
+        R.hat.1.new <- rep(0, t.test)
+        for(i in 1:t.test){
+            R.hat.1.new[i] <- R[T + (i - 1)] + Y.hat.1.new[(i - 1)*2 + 1]
+        }
+        
+        I.hat.1.new <- rep(0, t.test)
+        for(i in 1:t.test){
+            I.hat.1.new[i] <- I[T + (i - 1)] + Y.hat.1.new[(i - 1)*2 + 2]
+        }
+        
+        MRPE_1_new <- mean(  abs ( (     c(R.hat.1.new, I.hat.1.new) - c(R.test, I.test) )  /c(R.test, I.test)  )[c(R.test, I.test) > 0]  )
+        MRPE_1_new_I <- mean(  abs ( (  c(I.hat.1.new) - c(I.test) )  /c(I.test)  )[c(I.test) > 0]  )
+        MRPE_1_new_R <- mean(  abs ( (     c(R.hat.1.new) - c(R.test)     )  /c(R.test)  )[c(R.test) > 0]  )
+        
+        MRPE_1_new_Delta <- mean(  abs ( (  c(Y.hat.1.new) - c(Y.test)  )  /c(Y.test)  )[c(Y.test) > 0]  )
+        MRPE_1_new_I_Delta <- mean(  abs ( (c(Y.hat.1.new[seq(2, 2*t.test, 2)]) - c(Y.test[seq(2, 2*t.test, 2)])  )  /c(Y.test[seq(2, 2*t.test, 2)])  )[c(Y.test[seq(2, 2*t.test, 2)]) > 0]  )
+        MRPE_1_new_R_Delta <- mean(  abs ( (c(Y.hat.1.new[seq(1, 2*t.test, 2)]) - c(Y.test[seq(1, 2*t.test, 2)])  )  /c(Y.test[seq(1, 2*t.test, 2)])  )[c(Y.test[seq(1, 2*t.test, 2)]) > 0]  )
+        
+    
+        MRPE_1_Delta.final[j.1] <- MRPE_1_new_Delta; MRPE_1_I_Delta.final[j.1] <- MRPE_1_new_I_Delta; MRPE_1_R_Delta.final[j.1] <- MRPE_1_new_R_Delta; 
+        MRPE_1.final[j.1] <- MRPE_1_new; MRPE_1_I.final[j.1] <- MRPE_1_new_I; MRPE_1_R.final[j.1] <- MRPE_1_new_R; 
+        
+        
+        ###################################
+        ########  model 2
+        ###################################
+        cp <- c(1, temp$cp.final, n + 1)
+        m <- length(cp) - 1
+        X.new.2 <- matrix(0, nrow = n, ncol = m*p.x + 1)
+        for(i in 1:m){
+            X.new.2[cp[i]: (cp[i+1]-1), (p.x*(i-1)+1) : (p.x*i) ] <- X.train[cp[i]: (cp[i+1]-1), ]
+        }
+        X.new.2[, m*p.x + 1] <- Z[1:n, ]
+        
+        est.2 <- lm(Y.train[, ] ~ X.new.2[, ] - 1)
+        summary(est.2)
+        lm.res[[j.1]] <- est.2
+        Y.hat.2 <- est.2 $fitted.values
+        
+        beta.t.est <- est.2$coefficients[m*p.x - 1]
+        gamma.t.est <- est.2$coefficients[m*p.x ]
+        alpha.t.est <- est.2$coefficients[m*p.x + 1]
+        Y.hat.2.new <- X.test%*%c(beta.t.est, gamma.t.est) + as.matrix(Z[(n+1): nrow(Z), ])%*%c(alpha.t.est)
+        
         
         R.hat.2.new <- rep(0, t.test)
         for(i in 1:t.test){
@@ -494,62 +537,17 @@ for ( j.1 in 1:N){
         MRPE_2_new_I_Delta <- mean(  abs ( (c(Y.hat.2.new[seq(2, 2*t.test, 2)]) - c(Y.test[seq(2, 2*t.test, 2)])  )  /c(Y.test[seq(2, 2*t.test, 2)])  )[c(Y.test[seq(2, 2*t.test, 2)]) > 0]  )
         MRPE_2_new_R_Delta <- mean(  abs ( (c(Y.hat.2.new[seq(1, 2*t.test, 2)]) - c(Y.test[seq(1, 2*t.test, 2)])  )  /c(Y.test[seq(1, 2*t.test, 2)])  )[c(Y.test[seq(1, 2*t.test, 2)]) > 0]  )
         
-    
+        
         MRPE_2_Delta.final[j.1] <- MRPE_2_new_Delta; MRPE_2_I_Delta.final[j.1] <- MRPE_2_new_I_Delta; MRPE_2_R_Delta.final[j.1] <- MRPE_2_new_R_Delta; 
         MRPE_2.final[j.1] <- MRPE_2_new; MRPE_2_I.final[j.1] <- MRPE_2_new_I; MRPE_2_R.final[j.1] <- MRPE_2_new_R; 
-        
         
         ###################################
         ########  model 3
         ###################################
-        cp <- c(1, temp$cp.final, n + 1)
-        m <- length(cp) - 1
-        X.new.3 <- matrix(0, nrow = n, ncol = m*p.x + 1)
-        for(i in 1:m){
-            X.new.3[cp[i]: (cp[i+1]-1), (p.x*(i-1)+1) : (p.x*i) ] <- X.train[cp[i]: (cp[i+1]-1), ]
-        }
-        X.new.3[, m*p.x + 1] <- Z[1:n, ]
-        
-        est.3 <- lm(Y.train[, ] ~ X.new.3[, ] - 1)
-        summary(est.3)
-        lm.res[[j.1]] <- est.3
-        Y.hat.3 <- est.3 $fitted.values
-        
-        beta.t.est <- est.3$coefficients[m*p.x - 1]
-        gamma.t.est <- est.3$coefficients[m*p.x ]
-        alpha.t.est <- est.3$coefficients[m*p.x + 1]
-        Y.hat.3.new <- X.test%*%c(beta.t.est, gamma.t.est) + as.matrix(Z[(n+1): nrow(Z), ])%*%c(alpha.t.est)
-        
-        
-        R.hat.3.new <- rep(0, t.test)
-        for(i in 1:t.test){
-            R.hat.3.new[i] <- R[T + (i - 1)] + Y.hat.3.new[(i - 1)*2 + 1]
-        }
-        
-        I.hat.3.new <- rep(0, t.test)
-        for(i in 1:t.test){
-            I.hat.3.new[i] <- I[T + (i - 1)] + Y.hat.3.new[(i - 1)*2 + 2]
-        }
-        
-        MRPE_3_new <- mean(  abs ( (     c(R.hat.3.new, I.hat.3.new) - c(R.test, I.test) )  /c(R.test, I.test)  )[c(R.test, I.test) > 0]  )
-        MRPE_3_new_I <- mean(  abs ( (  c(I.hat.3.new) - c(I.test) )  /c(I.test)  )[c(I.test) > 0]  )
-        MRPE_3_new_R <- mean(  abs ( (     c(R.hat.3.new) - c(R.test)     )  /c(R.test)  )[c(R.test) > 0]  )
-        
-        MRPE_3_new_Delta <- mean(  abs ( (  c(Y.hat.3.new) - c(Y.test)  )  /c(Y.test)  )[c(Y.test) > 0]  )
-        MRPE_3_new_I_Delta <- mean(  abs ( (c(Y.hat.3.new[seq(2, 2*t.test, 2)]) - c(Y.test[seq(2, 2*t.test, 2)])  )  /c(Y.test[seq(2, 2*t.test, 2)])  )[c(Y.test[seq(2, 2*t.test, 2)]) > 0]  )
-        MRPE_3_new_R_Delta <- mean(  abs ( (c(Y.hat.3.new[seq(1, 2*t.test, 2)]) - c(Y.test[seq(1, 2*t.test, 2)])  )  /c(Y.test[seq(1, 2*t.test, 2)])  )[c(Y.test[seq(1, 2*t.test, 2)]) > 0]  )
-        
-        
-        MRPE_3_Delta.final[j.1] <- MRPE_3_new_Delta; MRPE_3_I_Delta.final[j.1] <- MRPE_3_new_I_Delta; MRPE_3_R_Delta.final[j.1] <- MRPE_3_new_R_Delta; 
-        MRPE_3.final[j.1] <- MRPE_3_new; MRPE_3_I.final[j.1] <- MRPE_3_new_I; MRPE_3_R.final[j.1] <- MRPE_3_new_R; 
-        
-        ###################################
-        ########  model 4
-        ###################################
         Delta.R.hat <- rep(0, T - 1)
         Delta.R <- rep(0, T - 1)
         for(i in 2:T){
-            Delta.R.hat[i - 1] <- Y.hat.3[(i - 2)*2 + 1]
+            Delta.R.hat[i - 1] <- Y.hat.2[(i - 2)*2 + 1]
             Delta.R[i - 1] <- Y[(i - 2)*2 + 1]
         }
         Delta.R.hat <- Delta.R.hat
@@ -558,7 +556,7 @@ for ( j.1 in 1:N){
         Delta.I.hat <- rep(0, T - 1)
         Delta.I <- rep(0, T - 1)
         for(i in 2:T){
-            Delta.I.hat[i - 1] <- Y.hat.3[(i - 2)*2 + 2]
+            Delta.I.hat[i - 1] <- Y.hat.2[(i - 2)*2 + 2]
             Delta.I[i - 1] <- Y[(i - 2)*2 + 2]
         }
         Delta.I.hat <- Delta.I.hat
@@ -569,12 +567,12 @@ for ( j.1 in 1:N){
         
         res <- c()
         for(i in 1:n){
-            res <- c(res,  Y[i] - Y.hat.3[i])
+            res <- c(res,  Y[i] - Y.hat.2[i])
         }
         
         residual.matrix <- cbind(residual_Delta.R, residual_Delta.I)
-        print("estimated sample variance for hat residual:")
-        print(var(residual.matrix))
+        # print("estimated sample variance for hat residual:")
+        # print(var(residual.matrix))
         
         var <- VARselect(residual.matrix, lag.max = 7, type = "none")
         
@@ -597,7 +595,7 @@ for ( j.1 in 1:N){
         #fitted residual of Delta I
         residual.hat.vec[seq(2, nrow(residual.hat)*2, 2)] <- residual.hat[, 2]
 
-        Y.hat.4 <- Y.hat.3 + c(rep(0, p.est*2),  residual.hat.vec)
+        Y.hat.3 <- Y.hat.2 + c(rep(0, p.est*2),  residual.hat.vec)
         
         ##predict the residual 
         predict.temp <- predict(var1, n.ahead = t.test)$fcst
@@ -608,45 +606,32 @@ for ( j.1 in 1:N){
         #fitted residual of Delta I
         residual.test.hat.vec[seq(2, t.test*2, 2)] <- predict.temp$residual_Delta.I[, 1]
         
-        Y.hat.4.new <- Y.hat.3.new +  residual.test.hat.vec
+        Y.hat.3.new <- Y.hat.2.new +  residual.test.hat.vec
         
-        R.hat.4.new <- rep(0, t.test)
+        R.hat.3.new <- rep(0, t.test)
         for(i in 1:t.test){
-            R.hat.4.new[i] <- R[T + (i - 1)] + Y.hat.4.new[(i - 1)*2 + 1]
+            R.hat.3.new[i] <- R[T + (i - 1)] + Y.hat.3.new[(i - 1)*2 + 1]
         }
         
-        I.hat.4.new <- rep(0, t.test)
+        I.hat.3.new <- rep(0, t.test)
         for(i in 1:t.test){
-            I.hat.4.new[i] <- I[T + (i - 1)] + Y.hat.4.new[(i - 1)*2 + 2]
+            I.hat.3.new[i] <- I[T + (i - 1)] + Y.hat.3.new[(i - 1)*2 + 2]
         }
         
-        MRPE_4_new <- mean(  abs ( (     c(R.hat.4.new, I.hat.4.new) - c(R.test, I.test) )  /c(R.test, I.test)  )[c(R.test, I.test) > 0]  )
-        MRPE_4_new_I <- mean(  abs ( (  c(I.hat.4.new) - c(I.test) )  /c(I.test)  )[c(I.test) > 0]  )
-        MRPE_4_new_R <- mean(  abs ( (     c(R.hat.4.new) - c(R.test)     )  /c(R.test)  )[c(R.test) > 0]  )
+        MRPE_3_new <- mean(  abs ( (     c(R.hat.3.new, I.hat.3.new) - c(R.test, I.test) )  /c(R.test, I.test)  )[c(R.test, I.test) > 0]  )
+        MRPE_3_new_I <- mean(  abs ( (  c(I.hat.3.new) - c(I.test) )  /c(I.test)  )[c(I.test) > 0]  )
+        MRPE_3_new_R <- mean(  abs ( (     c(R.hat.3.new) - c(R.test)     )  /c(R.test)  )[c(R.test) > 0]  )
         
-        MRPE_4_new_Delta <- mean(  abs ( (  c(Y.hat.4.new) - c(Y.test)  )  /c(Y.test)  )[c(Y.test) > 0]  )
-        MRPE_4_new_I_Delta <- mean(  abs ( (c(Y.hat.4.new[seq(2, 2*t.test, 2)]) - c(Y.test[seq(2, 2*t.test, 2)])  )  /c(Y.test[seq(2, 2*t.test, 2)])  )[c(Y.test[seq(2, 2*t.test, 2)]) > 0]  )
-        MRPE_4_new_R_Delta <- mean(  abs ( (c(Y.hat.4.new[seq(1, 2*t.test, 2)]) - c(Y.test[seq(1, 2*t.test, 2)])  )  /c(Y.test[seq(1, 2*t.test, 2)])  )[c(Y.test[seq(1, 2*t.test, 2)]) > 0]  )
+        MRPE_3_new_Delta <- mean(  abs ( (  c(Y.hat.3.new) - c(Y.test)  )  /c(Y.test)  )[c(Y.test) > 0]  )
+        MRPE_3_new_I_Delta <- mean(  abs ( (c(Y.hat.3.new[seq(2, 2*t.test, 2)]) - c(Y.test[seq(2, 2*t.test, 2)])  )  /c(Y.test[seq(2, 2*t.test, 2)])  )[c(Y.test[seq(2, 2*t.test, 2)]) > 0]  )
+        MRPE_3_new_R_Delta <- mean(  abs ( (c(Y.hat.3.new[seq(1, 2*t.test, 2)]) - c(Y.test[seq(1, 2*t.test, 2)])  )  /c(Y.test[seq(1, 2*t.test, 2)])  )[c(Y.test[seq(1, 2*t.test, 2)]) > 0]  )
         
-        MRPE_4_Delta.final[j.1] <- MRPE_4_new_Delta; MRPE_4_I_Delta.final[j.1] <- MRPE_4_new_I_Delta; MRPE_4_R_Delta.final[j.1] <- MRPE_4_new_R_Delta; 
-        MRPE_4.final[j.1] <- MRPE_4_new; MRPE_4_I.final[j.1] <- MRPE_4_new_I; MRPE_4_R.final[j.1] <- MRPE_4_new_R; 
+        MRPE_3_Delta.final[j.1] <- MRPE_3_new_Delta; MRPE_3_I_Delta.final[j.1] <- MRPE_3_new_I_Delta; MRPE_3_R_Delta.final[j.1] <- MRPE_3_new_R_Delta; 
+        MRPE_3.final[j.1] <- MRPE_3_new; MRPE_3_I.final[j.1] <- MRPE_3_new_I; MRPE_3_R.final[j.1] <- MRPE_3_new_R; 
     
     }
 }
 
-# MRPE_2
-MRPE_2_new_I
-MRPE_2_new_R
-# MRPE_3
-MRPE_3_new_I
-MRPE_3_new_R
-# MRPE_4
-MRPE_4_new_I
-MRPE_4_new_R
-
-MRPE_2_new_Delta
-MRPE_3_new_Delta
-MRPE_4_new_Delta
 
 filename <- paste0("Sim_", sim, "_bn_", b_t, ".RData")
 save.image(filename)
@@ -680,9 +665,9 @@ if(sim == 2 | sim == 3){
                            c(round(mean(alpha_est), 4), round(sd(alpha_est), 4) ) )
     }
     alpha.res <- cbind(c(rep(c("$\\beta_1$", "$\\beta_2$", "$\\gamma_1$", "$\\gamma_2$", "$\\alpha$"), 3)), alpha.res)
-    alpha.res <- cbind(c("\\multirow{ 5}{*}{model 3 ($b_n = 4$)}", rep("", 4), 
-                         "\\multirow{ 5}{*}{model 3 ($b_n = 8$)}", rep("", 4),
-                         "\\multirow{ 5}{*}{model 3 ($b_n = 12$)}", rep("", 4)), 
+    alpha.res <- cbind(c("\\multirow{ 5}{*}{model 2 ($b_n = 4$)}", rep("", 4), 
+                         "\\multirow{ 5}{*}{model 2 ($b_n = 8$)}", rep("", 4),
+                         "\\multirow{ 5}{*}{model 2 ($b_n = 12$)}", rep("", 4)), 
                        alpha.res)
     alpha.res <- cbind(rep("", 15), 
                        alpha.res)
@@ -702,36 +687,36 @@ if(sim == 3){
         filename <- paste0("Sim_", tt, "_bn_", ii,".RData")
         load(filename)
         MRPE.res <- rbind(MRPE.res,
-                          round(c(mean(MRPE_2.final), mean(MRPE_2_I.final), mean(MRPE_2_R.final) ), 6))
+                          round(c(mean(MRPE_1.final), mean(MRPE_1_I.final), mean(MRPE_1_R.final) ), 6))
         MRPE.Delta.res <- rbind(MRPE.Delta.res,
-                          round(c(mean(MRPE_2_Delta.final), mean(MRPE_2_I_Delta.final), mean(MRPE_2_R_Delta.final) ), 6))
+                          round(c(mean(MRPE_1_Delta.final), mean(MRPE_1_I_Delta.final), mean(MRPE_1_R_Delta.final) ), 6))
     }
     for(ii in c( 4, 8, 12)){
         filename <- paste0("Sim_", tt, "_bn_", ii, ".RData")
         load(filename)
         MRPE.res <- rbind(MRPE.res,
-                          round(c(mean(MRPE_3.final), mean(MRPE_3_I.final), mean(MRPE_3_R.final) ), 6))
+                          round(c(mean(MRPE_2.final), mean(MRPE_2_I.final), mean(MRPE_2_R.final) ), 6))
         MRPE.Delta.res <- rbind(MRPE.Delta.res,
-                                round(c(mean(MRPE_3_Delta.final), mean(MRPE_3_I_Delta.final), mean(MRPE_3_R_Delta.final) ), 6))
+                                round(c(mean(MRPE_2_Delta.final), mean(MRPE_2_I_Delta.final), mean(MRPE_2_R_Delta.final) ), 6))
         
     }
     for(ii in c( 4, 8, 12)){
         filename <- paste0("Sim_", tt, "_bn_", ii,".RData")
         load(filename)
         MRPE.res <- rbind(MRPE.res,
-                          round(c(mean(MRPE_4.final), mean(MRPE_4_I.final), mean(MRPE_4_R.final) ), 6))
+                          round(c(mean(MRPE_3.final), mean(MRPE_3_I.final), mean(MRPE_3_R.final) ), 6))
         MRPE.Delta.res <- rbind(MRPE.Delta.res,
-                                round(c(mean(MRPE_3_Delta.final), mean(MRPE_3_I_Delta.final), mean(MRPE_3_R_Delta.final) ), 6))
+                                round(c(mean(MRPE_2_Delta.final), mean(MRPE_2_I_Delta.final), mean(MRPE_2_R_Delta.final) ), 6))
         
     }
     
-    MRPE.res <- cbind(c( "model 2 ($b_n = 4$)", "model 2 ($b_n = 8$)", "model 2 ($b_n = 12$)",
-                         "model 3 ($b_n = 4$)", "model 3 ($b_n = 8$)", "model 3 ($b_n = 12$)" ,
-                         "model 4 ($b_n = 4$)", "model 4 ($b_n = 8$)", "model 4 ($b_n = 12$)" ), MRPE.res)
+    MRPE.res <- cbind(c( "model 1 ($b_n = 4$)", "model 1 ($b_n = 8$)", "model 1 ($b_n = 12$)",
+                         "model 2 ($b_n = 4$)", "model 2 ($b_n = 8$)", "model 2 ($b_n = 12$)" ,
+                         "model 3 ($b_n = 4$)", "model 3 ($b_n = 8$)", "model 3 ($b_n = 12$)" ), MRPE.res)
     MRPE.res <- cbind(rep("", 9), MRPE.res)
-    MRPE.Delta.res <- cbind(c( "model 2 ($b_n = 4$)", "model 2 ($b_n = 8$)", "model 2 ($b_n = 12$)",
-                         "model 3 ($b_n = 4$)", "model 3 ($b_n = 8$)", "model 3 ($b_n = 12$)" ,
-                         "model 4 ($b_n = 4$)", "model 4 ($b_n = 8$)", "model 4 ($b_n = 12$)" ), MRPE.Delta.res)
+    MRPE.Delta.res <- cbind(c( "model 1 ($b_n = 4$)", "model 1 ($b_n = 8$)", "model 1 ($b_n = 12$)",
+                         "model 2 ($b_n = 4$)", "model 2 ($b_n = 8$)", "model 2 ($b_n = 12$)" ,
+                         "model 3 ($b_n = 4$)", "model 3 ($b_n = 8$)", "model 3 ($b_n = 12$)" ), MRPE.Delta.res)
     MRPE.Delta.res <- cbind(rep("", 9), MRPE.Delta.res)
     table.MRPE_res <- xtable(MRPE.res, hline.after = c(1,2), digits = 6)
     print("MRPE")
@@ -744,13 +729,16 @@ if(sim == 3){
     
 }
 
-
-var.coef.vec <- unlist(var.coef.res)
-var.coef.mean <- matrix(0, ncol  = 2, nrow = 2)
-var.coef.mean[1, 1] <- mean(var.coef.vec[seq(1, length(var.coef.vec), 4)])
-var.coef.mean[2, 1] <- mean(var.coef.vec[seq(2, length(var.coef.vec), 4)])
-var.coef.mean[1, 2] <- mean(var.coef.vec[seq(3, length(var.coef.vec), 4)])
-var.coef.mean[2, 2] <- mean(var.coef.vec[seq(4, length(var.coef.vec), 4)])
+if(sim ==3){
+    var.coef.vec <- unlist(var.coef.res)
+    var.coef.mean <- matrix(0, ncol  = 2, nrow = 2)
+    var.coef.mean[1, 1] <- mean(var.coef.vec[seq(1, length(var.coef.vec), 4)])
+    var.coef.mean[2, 1] <- mean(var.coef.vec[seq(2, length(var.coef.vec), 4)])
+    var.coef.mean[1, 2] <- mean(var.coef.vec[seq(3, length(var.coef.vec), 4)])
+    var.coef.mean[2, 2] <- mean(var.coef.vec[seq(4, length(var.coef.vec), 4)])
+    print(var.coef.mean)
+    
+}
 if( sim == 3){
     filename <- paste0("Sim_", sim ,"_varcoef_est.pdf")
     pdf(filename, width = 11, height = 8.5)
@@ -805,7 +793,7 @@ for(ii in c(4, 8, 12)){
 }
 
 detection.full <- rbind(c("change points" , "truth", "mean", "std", "selection rate" ), detection.full)
-detection.full <- cbind(c("&", rep("&model 2 ($b_n = 4$)", m0), rep("&model 2 ($b_n = 8$)", m0), rep("&model 2 ($b_n = 12$)", m0)), detection.full)
+detection.full <- cbind(c("&", rep("&model 1 ($b_n = 4$)", m0), rep("&model 1 ($b_n = 8$)", m0), rep("&model 1 ($b_n = 12$)", m0)), detection.full)
 detection.res <- xtable(detection.full, hline.after = c(1,2))
 print(detection.res, include.rownames = FALSE, include.colnames = FALSE, hline.after = c(1,1), sanitize.text.function = identity)
 
