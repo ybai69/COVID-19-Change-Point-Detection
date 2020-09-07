@@ -1,11 +1,14 @@
 # Non-stationary Spatio-Temporal Modeling of COVID-19 Progression in The U.S.
-Code for ``Non-stationary Spatio-Temporal Modeling of COVID-19 Progression in The U.S.''.
+This repository contains code to reproduce the results in ``Non-stationary Spatio-Temporal Modeling of COVID-19 Progression in The U.S.''.
 
 ## Simulation
 
 Code for reproduce simulation results can be found in the [simulation.R](simulation.R). 
 
 ## Real data
+
+#### Example Code
+We provide an [Example](Example.pdf) of COVID-19 data analysis for US states.
 
 #### State-Level 
 

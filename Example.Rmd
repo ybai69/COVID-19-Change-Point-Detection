@@ -10,7 +10,7 @@ output:
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-Here is an example of COVID-19 data analysis for US States in the manuscript. We demonstrate the process of model 1, model 2.3, and model 3. 
+Here is an example of COVID-19 data analysis for US states in the manuscript. We demonstrate the process of model 1, model 2.3, and model 3. 
 For additional results for model 2.1, 2.2 and 2.4, see "Covid-19-state.R" for details.
 For county-level results, see "Covid-19-county.R" for details.
 
