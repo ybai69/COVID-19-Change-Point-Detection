@@ -265,7 +265,7 @@ In addition to arguments $\texttt{data\char`_y}$, $\texttt{data\char`_x}$, there
 * $\texttt{HBIC}$: if $\texttt{TRUE}$, use high-dimensional BIC criterion (HBIC); if $\texttt{FALSE}$, use traditional BIC criterion (BIC).
 * $\texttt{gamma.val}$: the tuning parameter for HBIC.
 
-```{r echo = T, results = 'hide', fig.show='hide'}
+```{r results = 'hide', fig.show='hide'}
 #run the tbfl method
 #scaling but not centering data
 Y_std <- sd(Y)
@@ -308,7 +308,8 @@ if(state.name %in% c("Texas")){
 
 b_n <- p * b_t
 temp.1 <- tbfl(method, Y_s, X_s, lambda.1.cv = lambda.1, lambda.2.cv = 0, 
-               max.iteration = max.iteration, tol = tol, block.size = b_n, HBIC = HBIC, gamma.val = gamma.val)
+               max.iteration = max.iteration, tol = tol, block.size = b_n, 
+               HBIC = HBIC, gamma.val = gamma.val)
 
 beta.est <- temp.1$beta.est
 beta.est <- lapply(beta.est, function (x) x*Y_std/X_std)
@@ -557,7 +558,7 @@ legend(as.Date(date.region[length(date.region)*3/4]), 1/4*max(R, R.tilde.2.3),
 ```
 
 ## Model 3: VAR(p) Model
-```{r echo = T, results = 'hide', fig.show='hide', message = FALSE}
+```{r  results = 'hide', fig.show='hide', message = FALSE}
 ###########################################################
 ###### model 3 use VAR(p) model, follow model 2.3
 ###########################################################
@@ -600,10 +601,12 @@ p.est <- var$selection["SC(n)"]
 #change point detection
 method <- c("VAR")
 if(p.est >= b_n/2){
-  temp.var <- tbfl(method, residual.matrix, lambda.1.cv = NULL, lambda.2.cv = 0, q = p.est, max.iteration = max.iteration, tol = tol, block.size = p.est+1)
+  temp.var <- tbfl(method, residual.matrix, lambda.1.cv = NULL, lambda.2.cv = 0, 
+                   q = p.est, max.iteration = max.iteration, tol = tol, block.size = p.est+1)
   print(p.est)
 }else{
-  temp.var <- tbfl(method, residual.matrix, lambda.1.cv = NULL, lambda.2.cv = 0, q = p.est, max.iteration = max.iteration, tol = tol, block.size = b_n/2)
+  temp.var <- tbfl(method, residual.matrix, lambda.1.cv = NULL, lambda.2.cv = 0, 
+                   q = p.est, max.iteration = max.iteration, tol = tol, block.size = b_n/2)
 }
 
 if(is.null(temp.var$cp.final)){
@@ -628,7 +631,8 @@ if(is.null(temp.var$cp.final)){
     p.est <- var.temp$selection["SC(n)"]
     print(p.est)
     var1 <- VAR(residual.matrix.temp, p = p.est, type = "none")
-    residual.hat[cp.residual[i]: (cp.residual[i+1]-1), ] <- rbind( matrix(0, ncol = 2, nrow = p.est), fitted(var1)) 
+    residual.hat[cp.residual[i]: (cp.residual[i+1]-1), ] <- rbind( matrix(0, ncol = 2, nrow = p.est),
+                                                                   fitted(var1)) 
   }
   residual.tilde <- residual.matrix -  residual.hat
   coef.matrix <- Bcoef(var1)
