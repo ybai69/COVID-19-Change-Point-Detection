@@ -2,7 +2,7 @@ rm(list=ls(all=TRUE))
 gc()
 
 ######## Loading Packages #######################
-library("NbClust")
+# library("NbClust")
 library("factoextra")
 library("Rcpp")
 library("RcppArmadillo")
@@ -23,24 +23,62 @@ sourceCpp("functions_BFL.cpp")
 ## data extracted from New York Times state-level data obtained from following Github repository
 # https://github.com/nytimes/covid-19-data
 # load nyt case data
-data.states <- read.csv("states-08-18.csv", header = TRUE)
+# data.states <- as.data.frame(data.table::fread("https://raw.githubusercontent.com/nytimes/covid-19-data/master/us-states.csv"))
+# use the data after March
+# data.states <- data.states[as.Date(data.states$date) >= as.Date('2020-03-01'),]
+# data.states <- data.states[as.Date(data.states$date) <= as.Date('2020-08-18'),]
+# write.csv(data.states, 'states.csv', row.names = FALSE)
+data.states <- read.csv("states-12-23.csv", header = TRUE)
+# data.states <- data.states[as.Date(data.states$date) <= as.Date('2020-10-30'),]
+data.states <- data.states[as.Date(data.states$date) <= as.Date('2020-11-30'),]
 data.states$date <-  as.Date(data.states$date)
 
 # population data extracted from NATIONAL BUREAU OF ECONOMIC RESEARCH
+# states.population <- as.data.frame(data.table::fread("https://www2.census.gov/programs-surveys/popest/datasets/2010-2019/counties/totals/co-est2019-alldata.csv"))
 states.population <- read.csv("co-est2019-alldata.csv", header = TRUE)
 states.population <- states.population[as.character(states.population$STNAME) == as.character(states.population$CTYNAME),
                                        c("STNAME", "CTYNAME", "POPESTIMATE2019")]
 # distance data extracted from US Census Bureau 
+# states.distance<- as.data.frame(data.table::fread("http://data.nber.org/distance/2010/sf1/state/sf12010statedistancemiles.csv"))
 states.distance <-read.csv("sf12010statedistancemiles.csv", header = TRUE)
+
+
+# https://github.com/covid19-dashboard-us/cdcar
+date.set <- paste0("X", gsub("-", ".", seq(min(data.states$date), max(data.states$date), by = "day")))
+recovered.jhu <- read.table(file = 'Cum_Recovery_state_2020-12-22_updated.tsv', sep = '\t', header = TRUE)
+recovered.states <- recovered.jhu
+recovered.jhu <- recovered.jhu[colnames(recovered.jhu) %in% date.set]
+recovered.jhu <- colSums(Filter(is.numeric, recovered.jhu))
+recovered.jhu <- rev(recovered.jhu)
+death.jhu <- read.table(file = 'Cum_Death_us_2020-12-22_updated.tsv', sep = '\t', header = TRUE)
+death.jhu <- death.jhu[death.jhu[,1] %in% date.set, 2]
+# death.jhu <- colSums(Filter(is.numeric, death.jhu))
+
+cum.recovered.death.ratio <- recovered.jhu/death.jhu
+# cum.recovered.death.ratio <- rev(cum.recovered.death.ratio)
+cum.recovered.death.ratio
+recovered.jhu.daily <- unlist(lapply(1:(length(date.set)-1), function(jjj) recovered.jhu[jjj+1] - recovered.jhu[jjj] ))
+death.jhu.daily <- unlist(lapply(1:(length(date.set)-1), function(jjj) death.jhu[jjj+1] - death.jhu[jjj] ))
+
+daily.recovered.death.ratio <- recovered.jhu.daily/death.jhu.daily
+# daily.recovered.death.ratio <- rev(daily.recovered.death.ratio)
+daily.recovered.death.ratio
+
+
+plot(1:length(daily.recovered.death.ratio), daily.recovered.death.ratio, type = "b")
+
+
+
+
 
 #########Change/choose the state name, lockdown date and reopen date below!!!!!!
 state.name <- "New York"
 Date.1 <- '2020-03-22'
 Date.2 <- '2020-05-15'
 
-state.name <- "Oregon"
-Date.1 <- '2020-03-23'
-Date.2 <- '2020-05-15'
+# state.name <- "Washington"
+# Date.1 <- '2020-03-23'
+# Date.2 <- '2020-05-30'
 
 state.name <- "Florida"
 Date.1 <- '2020-04-03'
@@ -60,12 +98,35 @@ Date.1 <- '2020-04-02'
 # phase 3 reopen date
 Date.2 <- '2020-06-03'
 
+# state.name <- "Iowa"
+# # No statewide stay-at-home order issued
+# Date.1 <- NULL
+# # loosening restrictions
+# Date.2 <- '2020-05-01'
+# 
+# state.name <- "Colorado"
+# Date.1 <- '2020-03-26'
+# Date.2 <- '2020-04-27'
+# 
+# state.name <- "Alabama"
+# Date.1 <- '2020-04-04'
+# Date.2 <- '2020-04-30'
 
-#############################################
+state.name <- "Oregon"
+Date.1 <- '2020-03-23'
+Date.2 <- '2020-05-15'
+
+
+
+
+
 print("first updated date:"); print(min(data.states$date))
 print("last updated date:"); print(max(data.states$date))
 
+#############################################
 lambda.1 <- c(1, 0.5, 0.1, 0.05, 0.01, 0.005, 0.001)
+
+
 
 #################################################
 # max distance 
@@ -82,6 +143,7 @@ fips_info(neighbor.fips)
 state.names <- fips_info(neighbor.fips)$full
 state.names <- c(state.name, state.names)
 state.lowernames <- tolower(state.names)
+state.contnames <- sub(' ', '', state.names)
 
 #################construct the dataframe including multiple regions
 dataList <- list()
@@ -117,7 +179,12 @@ deaths.all<- multi_full[,seq(3, ncol(multi_full), 2)]
 T <- nrow(cases.all);
 #R: the number of people who have recovered
 #using the nationwide recovered and death number to predict the recovered number
-R.all <- floor((1 + (5.5))*deaths.all);
+R.all <- floor((1 + (10))*deaths.all);
+if( state.name == "New York"){
+  R.all <- floor((1 + (5.5))*deaths.all);
+}
+
+
 #I: the number of people infected at time t
 I.all <- cases.all - R.all;
 #n: population 
@@ -130,17 +197,22 @@ for(i in 1:length(state.names)){
 
 #S: the number of susceptible people
 n.all.matrix <- matrix(rep(n.all,T),ncol = n.domains,byrow = TRUE)
-S.all <- n.all.matrix - I.all - R.all;
+# suppose 0.1 recovered people can became infected again later.
+immune.rate <- 0.9
+S.all <- n.all.matrix - I.all - R.all*immune.rate;
 
 #the fraction of S, I and R
 S.rate.all <- sapply(1:n.domains, function(jjj) S.all[,jjj]/n.all[jjj])
 I.rate.all <- sapply(1:n.domains, function(jjj) I.all[,jjj]/n.all[jjj])
 R.rate.all <- sapply(1:n.domains, function(jjj) R.all[,jjj]/n.all[jjj])
 
+I.rate.all.obs <- I.rate.all
+R.rate.all.obs <- R.rate.all
+S.rate.all.obs <- S.rate.all
 
 date.region <- multi_full$date
-I <- I.all[,1]
-R <- R.all[,1]
+I.obs <- I.all[,1]
+R.obs <- R.all[,1]
 cols <- brewer.pal(n.domains, "Spectral")
 
 
@@ -171,33 +243,199 @@ legend(multi_full$date[1], max(R.rate.all), legend=c(state.names),
 # dev.off()
 
 
-# filename <- paste0("numbers_", state.lowernames[1] ,".pdf")
-# pdf(filename, width=11, height=8.5)
-par(mar = c(4., 4.5, 1.5, 1))
-plot(date.region, R, col='dark green', ylim=c(min(I,R), max(I,R)), lty=1, type="l", lwd = 3,
-     ylab ='Number of Cases', xlab= 'Date', cex.lab=2, cex.axis=2)
-lines(date.region, I, col='dark orange', lty=1, type="l", lwd = 3)
-legend(as.Date(date.region[length(date.region)*4/5]), 1/5*max(I,R), legend=c(expression(I(t)), expression(R(t))),
-       col=c( 'dark orange', 'dark green'), bg="transparent", bty = "n", 
-       lwd = 3, cex=1.5, pt.cex = 1, seg.len=1.5, y.intersp=1, x.intersp=1)
-abline(v = as.Date(Date.1), col = 1,lwd = 2, lty = 3)
-abline(v = as.Date(Date.2), col = 1,lwd = 2, lty = 3)
-text(x= as.Date(Date.1), y = 3/4*max(I,R), col ="black", labels = as.character(as.Date(Date.1)), cex = 2)
-text(x= as.Date(Date.2), y = 3/4*max(I,R), col = "black", labels = as.character(as.Date(Date.2)), cex = 2)
-# dev.off()
+filename <- paste0("numbers_", state.lowernames[1] ,".pdf")
+pdf(filename, width=11, height=8.5)
+# par(mar = c(4., 5, 1.5, 1.5))
+par(mar = c(4.5, 6, 2, 1.5), mgp=c(3.5, 1.2, 0))
+plot(date.region, R.obs, col='dark green', ylim=c(min(I.obs, R.obs), max(I.obs, R.obs)), lty=1, type="l", lwd = 3,
+     ylab ='Number of Cases', xlab= 'Date', cex.lab=3, cex.axis=3)
+lines(date.region, I.obs, col='dark orange', lty=1, type="l", lwd = 3)
+legend(as.Date(date.region[length(date.region)*4/5]), 1/5*max(I.obs, R.obs),
+       legend=c(expression(I(t)), expression(R(t))),
+       col=c( 'dark orange', 'dark green'), bg="transparent", bty = "n",
+       lwd = 3, cex = 2, pt.cex = 2, seg.len=1.5, y.intersp=1, x.intersp=1)
+abline(v = as.Date(Date.1), col = 1, lwd = 2, lty = 3)
+abline(v = as.Date(Date.2), col = 1, lwd = 2, lty = 3)
+text(x= as.Date(Date.1), y = 3/4*max(I.obs, R.obs), col ="black", labels = as.character(as.Date(Date.1)), cex = 2.5)
+text(x= as.Date(Date.2), y = 2/4*max(I.obs, R.obs), col = "black", labels = as.character(as.Date(Date.2)), cex = 2.5)
+dev.off()
 
+
+
+#### grid search find a  quadratic function 
+#################################### 
+# a.vals <- c(0.1, 0.2, 0.5, 1, 2, 5, 10)
+a.vals <- c(0.1, 0.15, 0.2, 0.25, 0.3)
+t.test <- 13
+T.full <- T + t.test
+MRPE_1_new.full <- c()
+temp.full <- vector("list", length(a.vals));
+est.1.full <- vector("list", length(a.vals));
+set.seed(123456)
+for(idx in 1:length(a.vals)){
+  a.val <- a.vals[idx]
+  I <-  I.obs
+  R <-  R.obs
+  for(t in 2:T){
+    rate <- 1/(((t)+a.val*T.full )/((1 + a.val )*T.full))^2
+    print(1/rate)
+    I[t] <- (I.obs[t] - I.obs[t-1])*rate + I[t-1]
+    
+  }
+  
+  plot( 1- (((1:T)+a.val*T)/((1 + a.val )*T))^2 )
+  
+  
+  R.rate.all[, 1]<- R/n.all[1]
+  I.rate.all[, 1]<- I/n.all[1]
+  S.rate.all[, 1]<- (n.all.matrix[, 1] - I - R*immune.rate)/n.all[1];
+  ############################################
+  ######## construct varibles ################
+  ############################################
+  y.list <- vector("list",T-1);
+  x.list <- vector("list",T-1);
+  
+  for(i in 2:T){
+    y.list[[i-1]] <- matrix(c(R.rate.all[i,1]-R.rate.all[i-1, 1], 
+                              I.rate.all[i, 1]-I.rate.all[i-1,1]), 2, 1);
+    x.temp <- matrix(0,2,2);
+    x.temp[1,2] <- I.rate.all[i-1, 1];
+    x.temp[2,1] <- I.rate.all[i-1, 1]*S.rate.all[i-1, 1];
+    x.temp[2,2] <- -I.rate.all[i-1, 1];
+    x.list[[i-1]] <- x.temp;
+  }
+  
+  Y <- y.list[[1]];
+  for(i in 2:(T-1)){
+    Y <- rbind(Y, y.list[[i]])
+  }
+  
+  X <- x.list[[1]];
+  for(i in 2:(T-1)){
+    X <- rbind(X, x.list[[i]])
+  }
+  
+  beta_t <- sapply(1:length(y.list), function(jjj)  (y.list[[jjj]][1]+y.list[[jjj]][2])/I.rate.all[jjj,1])
+  gamma_t <- sapply(1:length(y.list), function(jjj)  y.list[[jjj]][1]/I.rate.all[jjj,1])
+  
+  cols <- c("dark orange", "purple", "darkolivegreen4", "blue" )
+  plot(multi_full$date[-length(multi_full$date)], beta_t,type='l',col=cols[1],lty=1,lwd = 3,
+       ylab ='Rate', xlab= 'Date',cex.lab=2 , cex.axis=2)
+  lines(as.Date(multi_full$date[-length(multi_full$date)]), gamma_t,col=cols[3],lty=1,type="l",lwd = 3)
+  
+  
+  #################################################
+  ######### Model 1  ##############################
+  #################################################
+  #scaling but not centering data
+  Y_std <- sd(Y)
+  Y_s <- scale(Y, center = FALSE, scale = apply(Y, 2, sd, na.rm = TRUE))
+  # plot(seq(1, length(Y_s),1),Y_s,type='l')
+  
+  X_std <- apply(X, MARGIN=2, FUN=sd)
+  X_s <- scale(X, center = FALSE, scale = apply(X, 2, sd, na.rm = TRUE))
+  
+  
+  p.x <- ncol(X_s)
+  p.y <- ncol(Y_s)
+  n <- nrow(X_s)
+  tol <- 10^(-4); # tolerance 
+  max.iteration <- 200; # max number of iteration for the LASSO solution
+  method <- c("MLR")
+  
+  #p is the number of variables for each day (I_t and R_t) 
+  p <- 2
+  #b_t is the block size among the time points (1 : (length(date) - 1))
+  if(state.name %in% c("Texas")){
+    # b_t <- 5
+    # 2020-11-30
+    b_t <- 7
+    gamma.val <- 10
+    HBIC = TRUE
+    
+  }else if(state.name %in% c("Florida", "Iowa")){
+    b_t <- 7
+    gamma.val <- 5
+    HBIC = TRUE
+    
+  }else if(state.name %in% c("California")){
+    b_t <- 7
+    gamma.val <- 5
+    HBIC = TRUE
+    
+  }else if(state.name %in% c("Oregon")){
+    b_t <- 7
+    gamma.val <- 5
+    HBIC = TRUE
+    
+  }else{
+    b_t <- 7
+    gamma.val <- 10
+    HBIC = TRUE
+  }
+  
+  b_n <- p * b_t
+  
+  temp.1 <- tbfl(method, Y_s, X_s, lambda.1.cv = lambda.1, lambda.2.cv = 0,
+                 max.iteration = max.iteration, tol = tol, block.size = b_n, HBIC = HBIC, gamma.val = gamma.val)
+  
+  temp.full[[idx]] <- temp.1
+  
+  cp <- c(1, temp.1$cp.final, n+1)
+  m <- length(cp) - 1
+  X.new.new <- matrix(0, nrow = n, ncol = m*p.x)
+  for(i in 1:m){
+    X.new.new[cp[i]: (cp[i+1]-1), (p.x*(i-1)+1) : (p.x*i) ] <- X[cp[i]: (cp[i+1]-1), ]
+  }
+  # est.1 <- lm(Y[-c(1:2), ] ~ X.new.new[-c(1:2), ]  - 1)
+  est.1 <- lm(Y ~ X.new.new  - 1)
+  est.1.full[[idx ]] <- est.1
+  Y.hat.1 <- est.1$fitted.values
+  MRPE_1_new <- mean(  abs ( (    Y.hat.1[seq(2, n , 2)] - Y[seq(2, n, 2)] )  /c(Y[seq(2,n,2)])  )[c(Y[seq(2,n,2)]) > 0]  )
+  MRPE_1_new.full <- c(MRPE_1_new.full, MRPE_1_new)
+}
+idx <- which.min(MRPE_1_new.full)
+cp.final <- temp.full[[idx]]$cp.final 
+cp.date <- c(1:n)[floor( (cp.final-1) / p) + 1]
+a.final <- a.vals[idx]
+a.final
+MRPE_1_new.full
+date.region[cp.date]
+state.name
+a.vals
+
+
+
+
+
+################################################
+set.seed(123456)
+a.val <- a.final
+I <-  I.obs
+R <-  R.obs
+for(t in 2:T){
+  rate <- 1/(((t)+a.val*T.full)/((1 + a.val )*T.full))^2
+  print(1/rate)
+  I[t] <- (I.obs[t] - I.obs[t-1])*rate + I[t-1]
+
+}
+
+
+R.rate.all[, 1]<- R/n.all[1]
+I.rate.all[, 1]<- I/n.all[1]
+S.rate.all[, 1]<- (n.all.matrix[, 1] - I - R*immune.rate)/n.all[1];
 
 ############################################
 ######## construct varibles ################
 ############################################
-y.list <- vector("list",T-1);
-x.list <- vector("list",T-1);
+y.list <- vector("list", T-1);
+x.list <- vector("list", T-1);
 
 for(i in 2:T){
   y.list[[i-1]] <- matrix(c(R.rate.all[i,1]-R.rate.all[i-1, 1], I.rate.all[i, 1]-I.rate.all[i-1,1]), 2, 1);
   x.temp <- matrix(0,2,2);
   x.temp[1,2] <- I.rate.all[i-1, 1];
-  x.temp[2,1] <-  I.rate.all[i-1, 1];
+  x.temp[2,1] <-  I.rate.all[i-1, 1]*S.rate.all[i-1, 1];
   x.temp[2,2] <- -I.rate.all[i-1, 1];
   x.list[[i-1]] <- x.temp;
 }
@@ -215,6 +453,12 @@ for(i in 2:(T-1)){
 beta_t <- sapply(1:length(y.list), function(jjj)  (y.list[[jjj]][1]+y.list[[jjj]][2])/I.rate.all[jjj,1])
 gamma_t <- sapply(1:length(y.list), function(jjj)  y.list[[jjj]][1]/I.rate.all[jjj,1])
 
+# cols <- c("dark orange", "purple", "darkolivegreen4", "blue" )
+# plot(multi_full$date[-length(multi_full$date)], beta_t,type='l',col=cols[1],lty=1,lwd = 3,
+#      ylab ='Rate', xlab= 'Date',cex.lab=2 , cex.axis=2)
+# lines(as.Date(multi_full$date[-length(multi_full$date)]), gamma_t,col=cols[3],lty=1,type="l",lwd = 3)
+# 
+# 
 #################################################
 ######### Model 1  ##############################
 #################################################
@@ -227,44 +471,37 @@ X_std <- apply(X, MARGIN=2, FUN=sd)
 X_s <- scale(X, center = FALSE, scale = apply(X, 2, sd, na.rm = TRUE))
 
 
-# filename <- paste0("qqplot_", state.lowernames[1] ,".pdf")
-# pdf(filename, width=11, height=8.5)
-par(mar = c(4., 4.5, 1.5, 1))
-qqnorm(Y_s, cex.lab=2, cex.axis=2, cex= 2, main=NULL)
-qqline(Y_s, lwd = 3)
-# dev.off()
-
-qqnorm(X_s[,1])
-qqline(X_s[,1])
-qqnorm(X_s[,2])
-qqline(X_s[,2])
-
 
 p.x <- ncol(X_s)
 p.y <- ncol(Y_s)
 n <- nrow(X_s)
-tol <- 10^(-4); # tolerance 
+tol <- 10^(-4); # tolerance
 max.iteration <- 200; # max number of iteration for the LASSO solution
 method <- c("MLR")
 
-#p is the number of variables for each day (I_t and R_t) 
+#p is the number of variables for each day (I_t and R_t)
 p <- 2
 #b_t is the block size among the time points (1 : (length(date) - 1))
 if(state.name %in% c("Texas")){
-  b_t <- 5
+  b_t <- 7
   gamma.val <- 10
   HBIC = TRUE
-  
+
 }else if(state.name %in% c("Florida", "Iowa")){
   b_t <- 7
   gamma.val <- 5
   HBIC = TRUE
-  
+
 }else if(state.name %in% c("California")){
   b_t <- 7
   gamma.val <- 5
   HBIC = TRUE
-  
+
+}else if(state.name %in% c("Oregon")){
+  b_t <- 7
+  gamma.val <- 5
+  HBIC = TRUE
+
 }else{
   b_t <- 7
   gamma.val <- 10
@@ -273,8 +510,13 @@ if(state.name %in% c("Texas")){
 
 b_n <- p * b_t
 
-temp.1 <- tbfl(method, Y_s, X_s, lambda.1.cv = lambda.1, lambda.2.cv = 0, 
+temp.1 <- tbfl(method, Y_s, X_s, lambda.1.cv = lambda.1, lambda.2.cv = 0,
                max.iteration = max.iteration, tol = tol, block.size = b_n, HBIC = HBIC, gamma.val = gamma.val)
+b_t
+gamma.val
+HBIC
+
+
 
 beta.est <- temp.1$beta.est
 beta.est <- lapply(beta.est, function (x) x*Y_std/X_std)
@@ -284,17 +526,19 @@ cp.final <- temp.1$cp.final
 date.region[floor( (cp.final-1) / p) + 1]
 cp.date <- date.region[floor( (cp.final-1) / p) + 1]
 
+
 index.date <- seq(1, length(date.region), b_t)
 if(index.date[length(index.date)] < length(date.region)){
   index.date <- c(index.date[-length(index.date)], length(date.region))
 }
+  
 
 cols <- c("dark orange", "purple", "darkolivegreen4", "blue" )
 beta_t_est <- unlist(beta.est)[seq(1, length(unlist(beta.est)), 2)]
 gamma_t_est <- unlist(beta.est)[seq(2, length(unlist(beta.est)), 2)]
 
-ylim_max <- 0.15
-
+# ylim_max <- 0.15
+ylim_max <- 0.05
 
 beta_t_smooth <- beta_t
 beta_t_smooth[beta_t == Inf] = 0
@@ -306,37 +550,45 @@ gamma_t_smooth[-c(1:6)] <- rollmean(gamma_t, k = 7, align = 'right')
 gamma_t_smooth[ c(1:6)] <- mean(gamma_t[ c(1:6)])
 
 
-# filename <- paste0("beta_gamma_", state.lowernames[1], "_smooth.pdf")
-# pdf(filename, width = 11, height=8.5)
-par(mar = c(4., 4.5, 1.5, 1))
+filename <- paste0("beta_gamma_", state.lowernames[1], "_smooth.pdf")
+pdf(filename, width = 11, height=8.5)
+par(mar = c(4.5, 6, 2, 1.5), mgp=c(3.5, 1.2, 0))
 plot(date.region[-length(date.region)], beta_t_smooth, type = 'l', col = cols[1], lty = 1, lwd = 3,
-     ylab = 'Rate', xlab = 'Date',cex.lab = 2, cex.axis = 2, ylim = c(0, ylim_max),
+     ylab = 'Rate', xlab = 'Date',cex.lab = 3, cex.axis = 3, ylim = c(0, ylim_max),
      xlim = c(as.Date('2020-03-15'), date.region[length(date.region)]))
 lines(date.region[index.date[-length(index.date)]], beta_t_est, col = cols[2], lty = 1, type = "l", lwd = 3)
 lines(as.Date(date.region[-length(date.region)]), gamma_t_smooth,col = cols[3], lty=1, type = "l", lwd = 3)
 lines(date.region[index.date[-length(index.date)]], gamma_t_est, col = cols[4], lty = 1, type = "l", lwd = 3)
 legend(as.Date(date.region[length(date.region)*3/4]), ylim_max, legend = c(expression(beta(t)),  expression(hat(beta)(t)), expression(gamma(t)),  expression(hat(gamma)(t))),
-       col = cols, bty = "n", lwd = 3, cex=1.5, pt.cex = 1, bg = "transparent",
+       col = cols, bty = "n", lwd = 3, cex= 2, pt.cex = 2, bg = "transparent",
        seg.len=1.5, y.intersp=1 , x.intersp=1)
-abline(v = as.Date(cp.date), col = "dark red",cex = 2 ,lwd = 2, lty = 2)
-if(length(cp.date) > 2){
-  text(x= as.Date(cp.date[2]), y = 2/4*ylim_max, col = "dark red", labels = as.character(cp.date[2]), cex = 2.00)
-  text(x = as.Date(cp.date[-2]), y = 2/3*ylim_max, col = "dark red", labels = as.character(cp.date[-2]), cex = 2.00)
+abline(v = as.Date(cp.date), col = "dark red", cex = 2,lwd = 2, lty = 2)
+# if(length(cp.date) > 2){
+#   text(x= as.Date(cp.date[2]), y = 2/4*ylim_max, col = "dark red", labels = as.character(cp.date[2]), cex = 2.50)
+#   text(x = as.Date(cp.date[-2]), y = 2/3*ylim_max, col = "dark red", labels = as.character(cp.date[-2]), cex = 2.50)
+# }
+if(length(cp.date) > 3){
+  text(x= as.Date(cp.date[seq(1, length(cp.date), 2)]), y = 4/5*ylim_max, col = "dark red", labels = as.character(cp.date[seq(1, length(cp.date), 2)]), cex = 2.50)
+  text(x = as.Date(cp.date[seq(2, length(cp.date)-2, 2)]), y = 3/5*ylim_max, col = "dark red", labels = as.character(cp.date[seq(2, length(cp.date)-2, 2)]), cex = 2.50)
+  text(x= as.Date(cp.date[length(cp.date)]), y = 2/5*ylim_max, col = "dark red", labels = as.character(cp.date[length(cp.date)]), cex = 2.50)
+}else if(length(cp.date) == 3){
+  text(x= as.Date(cp.date[c(1, 3 )]), y = 4/5*ylim_max, col = "dark red", labels = as.character(cp.date[c(1, 3)]), cex = 2.50)
+  text(x = as.Date(cp.date[2]), y = 3/5*ylim_max, col = "dark red", labels = as.character(cp.date[2]), cex = 2.50)
 }else if(length(cp.date) == 2){
   if(cp.date[2] - cp.date[1] < 30){
-    text(x= as.Date(cp.date[2]), y = 2/4*ylim_max, col = "dark red", labels = as.character(cp.date[2]), cex = 2.00)
-    text(x = as.Date(cp.date[1]), y = 2/3*ylim_max, col = "dark red", labels = as.character(cp.date[1]), cex = 2.00)
+    text(x= as.Date(cp.date[2]), y = 2/4*ylim_max, col = "dark red", labels = as.character(cp.date[2]), cex = 2.50)
+    text(x = as.Date(cp.date[1]), y = 2/3*ylim_max, col = "dark red", labels = as.character(cp.date[1]), cex = 2.50)
   }else{
-    text(x = as.Date(cp.date), y = 2/3*ylim_max, col = "dark red", labels = as.character(cp.date), cex = 2.00)
+    text(x = as.Date(cp.date), y = 2/3*ylim_max, col = "dark red", labels = as.character(cp.date), cex = 2.50)
   }
 }else{
-  text(x = as.Date(cp.date), y = 2/3*ylim_max, col = "dark red", labels = as.character(cp.date), cex = 2.00)
+  text(x = as.Date(cp.date), y = 3/5*ylim_max, col = "dark red", labels = as.character(cp.date), cex = 2.50)
 }
 abline(v = as.Date(Date.1), col = 1, cex = 2, lwd = 2, lty = 3)
 abline(v = as.Date(Date.2), col = 1, cex = 2, lwd = 2, lty = 3)
-text(x = as.Date(Date.1), y = 3/4*ylim_max, col ="black", labels = as.character(as.Date(Date.1)), cex = 2.00)
-text(x = as.Date(Date.2), y = 3/4*ylim_max, col = "black", labels = as.character(as.Date(Date.2)), cex = 2.00)
-# dev.off()
+text(x = as.Date(Date.1), y = 3/4*ylim_max, col ="black", labels = as.character(as.Date(Date.1)), cex = 2.50)
+text(x = as.Date(Date.2), y = 2/4*ylim_max, col = "black", labels = as.character(as.Date(Date.2)), cex = 2.50)
+dev.off()
 
 
 # filename <- paste0("beta_gamma_", state.lowernames[1], ".pdf")
@@ -433,6 +685,32 @@ text(x= as.Date(Date.2), y = 3/4*ylim_max, col = "black", labels = as.character(
 # dev.off()
 
 
+# filename <- paste0("R0_", state.lowernames[1], ".pdf")
+# pdf(filename, width=11, height=8.5)
+ylim_max = 15
+par(mar = c(4.5, 6, 2, 1.5), mgp=c(3.5, 1.2, 0))
+plot(date.region[-length(date.region)], beta_t/gamma_t, type = 'l', col = cols[1], lty = 1, lwd = 3,
+     ylab = 'Rate', xlab = 'Date', cex.lab = 3, cex.axis = 3, ylim = c(0, ylim_max),
+     xlim = c(as.Date('2020-03-15'), date.region[length(date.region)]))
+lines(date.region[index.date[-length(index.date)]], beta_t_est/gamma_t_est, col = cols[2], lty = 1, type = "l", lwd = 3)
+legend(as.Date(date.region[length(date.region)*3/4]), ylim_max, legend = c(expression(R(t)),  expression(hat(R)(t))),
+       col = cols, bty = "n", lwd = 3, cex=2, pt.cex = 2, bg="transparent",
+       seg.len=1.5, y.intersp=1 , x.intersp=1)
+abline(v = as.Date(cp.date), col = "dark red",cex = 2 ,lwd = 2, lty = 2)
+if(length(cp.date) > 2){
+  text(x= as.Date(cp.date[2]), y = 2/4*ylim_max, col = "dark red", labels = as.character(cp.date[2]), cex = 2.50)
+  text(x = as.Date(cp.date[-2]), y = 2/3*ylim_max, col = "dark red", labels = as.character(cp.date[-2]), cex = 2.50)
+}else{
+  text(x = as.Date(cp.date), y = 3/5*ylim_max, col = "dark red", labels = as.character(cp.date), cex = 2.50)
+}
+# text(x= as.Date(cp.date), y = 2/3*ylim_max, col = "dark red",labels = as.character(cp.date), cex = 2.00)
+abline(v = as.Date(Date.1), col = 1, cex = 2, lwd = 2, lty = 3)
+abline(v = as.Date(Date.2), col = 1, cex = 2, lwd = 2, lty = 3)
+text(x = as.Date(Date.1), y = 4/5*ylim_max, col ="black", labels = as.character(as.Date(Date.1)), cex = 2.50)
+text(x = as.Date(Date.2), y = 2/5*ylim_max, col = "black", labels = as.character(as.Date(Date.2)), cex = 2.50)
+abline(h = 1, col = "red", cex = 2, lwd = 2, lty = 3)
+# dev.off()
+
 #################refit the model 
 cp <- c(1, temp.1$cp.final, n+1)
 m <- length(cp) - 1
@@ -462,19 +740,41 @@ for(i in 2:T){
 }
 R.hat.1 <- R.hat.1*n.all[1]
 
-I.hat.1 <- rep(0,T)
-I.hat.1[1] <- I.rate.all[1,1]
+# I.hat.1 <- rep(0,T)
+# I.hat.1[1] <- I.rate.all[1,1]
+# for(i in 2:T){
+#   I.hat.1[i] <-  I.rate.all[i-1,1]+Y.hat.1[(i-2)*2+2]
+# }
+# I.hat.1 <- I.hat.1*n.all[1]
+# 
+# I.hat.obs.1 <- I.hat.1
+# for(t in 2:T){
+#   rate <- (((t)+a.val*T.full)/((1 + a.val )*T.full))^2
+#   print(rate)
+#   I.hat.obs.1[t] <- (I.hat.1[t] - I.hat.1[t-1])*rate + I.hat.obs.1[t-1]
+#   
+# }
+
+
+I.hat.obs.1 <- rep(0,T)
+I.hat.obs.1[1] <- I.rate.all.obs[1,1]
 for(i in 2:T){
-  I.hat.1[i] <-  I.rate.all[i-1,1]+Y.hat.1[(i-2)*2+2]
+  rate <- (((i)+a.val*T.full)/((1 + a.val )*T.full))^2
+  I.hat.obs.1[i] <-  I.rate.all.obs[i-1,1] + Y.hat.1[(i-2)*2+2]*rate
 }
-I.hat.1 <- I.hat.1*n.all[1]
+I.hat.obs.1 <- I.hat.obs.1*n.all[1]
 
 
-
-MRPE_1_I <- mean(  abs ( (     c(I.hat.1[-1]) - c(I[-1])     )  /c(I[-1])  )[intersect( which(c(I[-1]) > 0  ), 2:(T-1) )  ]  )
+MRPE_1_I <- mean(  abs ( (     c(I.hat.obs.1[-1]) - c(I.obs[-1])     )  /c(I.obs[-1])  )[intersect( which(c(I.obs[-1]) > 0  ), 2:(T-1) )  ]  )
 print(round(MRPE_1_I, 4))
-MRPE_1_R <- mean(  abs ( (     c(R.hat.1[-1]) - c(R[-1])     )  /c(R[-1])  )[intersect( which(c(R[-1]) > 0  ), 2:(T-1) )  ]  )
+MRPE_1_R <- mean(  abs ( (     c(R.hat.1[-1]) - c(R.obs[-1])     )  /c(R.obs[-1])  )[intersect( which(c(R.obs[-1]) > 0  ), 2:(T-1) )  ]  )
 print(round(MRPE_1_R, 4))
+
+
+# MRPE_1_I <- mean(  abs ( (     c(I.hat.1[-1]) - c(I[-1])     )  /c(I[-1])  )[intersect( which(c(I[-1]) > 0  ), 2:(T-1) )  ]  )
+# print(round(MRPE_1_I, 4))
+# MRPE_1_R <- mean(  abs ( (     c(R.hat.1[-1]) - c(R[-1])     )  /c(R[-1])  )[intersect( which(c(R[-1]) > 0  ), 2:(T-1) )  ]  )
+# print(round(MRPE_1_R, 4))
 
 
 R.tilde.1 <- rep(0,T)
@@ -485,35 +785,45 @@ for(i in 2:T){
 R.tilde.1 <- R.tilde.1*n.all[1]
 
 
+# I.tilde.1 <- rep(0,T)
+# I.tilde.1[1] <- I.rate.all[1,1]
+# for(i in 2:T){
+#   I.tilde.1[i] <- I.tilde.1[i-1] + Y.hat.1[(i-2)*2+2]
+# }
+# I.tilde.1 <- I.tilde.1*n.all[1]
+
 I.tilde.1 <- rep(0,T)
-I.tilde.1[1] <- I.rate.all[1,1]
+I.tilde.1[1] <- I.rate.all.obs[1,1]
 for(i in 2:T){
-  I.tilde.1[i] <- I.tilde.1[i-1] + Y.hat.1[(i-2)*2+2]
+  rate <- (((i)+a.val*T.full)/((1 + a.val )*T.full))^2
+  I.tilde.1[i] <- I.tilde.1[i-1] + Y.hat.1[(i-2)*2+2]*rate
 }
 I.tilde.1 <- I.tilde.1*n.all[1]
 
 
-# filename <- paste0("Infected_", state.lowernames[1], "_1.pdf")
-# pdf(filename, width=11, height=8.5)
-par(mar = c(4., 4.5, 1.5, 1))
-plot(date.region, I , col='1', ylim=c(0,max(I, I.tilde.1)), lty=1, type="l", lwd = 3,
-     ylab ='Number of Infected Cases', xlab= 'Date', cex.lab=2 , cex.axis=2)
+filename <- paste0("Infected_", state.lowernames[1], "_1.pdf")
+pdf(filename, width=11, height=8.5)
+par(mar = c(4.5, 6, 2, 1.5), mgp=c(3.5, 1.2, 0))
+plot(date.region, I.obs , col='1', ylim=c(0,max(I.obs, I.tilde.1)), lty=1, type="l", lwd = 3,
+     ylab ='Number of Infected Cases', xlab= 'Date', cex.lab = 3 , cex.axis = 3)
 lines(date.region, I.tilde.1, col='2',lty=1,type="l", lwd = 3)
-legend(as.Date(date.region[length(date.region)*3/4]), 1/4*max(I,I.tilde.1), legend=c(expression(I(t)), expression(tilde(I)(t))),
-       col=c( 1,2), bg="transparent", bty = "n", 
-       lwd = 3, cex=1.5, pt.cex = 1, seg.len=1.5, y.intersp=1 , x.intersp=1)
-# dev.off()
+legend(as.Date(date.region[length(date.region)*3/4]), 1/4*max(I.obs,I.tilde.1), 
+       legend = c(expression(I(t)), expression(tilde(I)(t))),
+       col=c(1, 2), bg="transparent", bty = "n", 
+       lwd = 3, cex = 2, pt.cex = 2, seg.len=1.5, y.intersp = 1 , x.intersp = 1)
+dev.off()
 
-# filename <- paste0("Recovered_", state.lowernames[1] ,"_1.pdf")
-# pdf(filename, width=11, height=8.5)
-par(mar = c(4., 4.5, 1.5, 1))
+
+filename <- paste0("Recovered_", state.lowernames[1] ,"_1.pdf")
+pdf(filename, width=11, height=8.5)
+par(mar = c(4.5, 6, 2, 1.5), mgp=c(3.5, 1.2, 0))
 plot(date.region, R, type='l', col='1', ylim=c(0,max(R, R.tilde.1)),lty=1,lwd = 3,
-     ylab ='Number of Recovered Cases', xlab= 'Date', cex.lab=2 , cex.axis=2)
+     ylab ='Number of Recovered Cases', xlab= 'Date', cex.lab=3 , cex.axis=3)
 lines(date.region, R.tilde.1, col='2', lty=1, type="l", lwd = 3)
 legend(as.Date(date.region[length(date.region)*3/4]), 1/4*max(R, R.tilde.1), legend=c(expression(R(t)), expression(tilde(R)(t))),
        col=c( 1,2), bg="transparent", bty = "n", 
-       lwd = 3, cex=1.5, pt.cex = 1, seg.len=1.5, y.intersp=1 , x.intersp=1)
-# dev.off()
+       lwd = 3, cex = 2, pt.cex = 2, seg.len = 1.5, y.intersp=1 , x.intersp=1)
+dev.off()
 
 
 #predict the number of infected and recovered by the estiamted beta and gamma in the phase2/3 reopenning plan
@@ -531,32 +841,46 @@ if(state.name %in% c("Florida", "Texas")){
   R.start <- R[date.region == Date.2]
   start.date <- date.region[date.region == Date.2]
   end.date <- start.date + 7*3
-  I.true <- I[date.region %in% seq(start.date, end.date, by="days")]
-  R.true <- R[date.region %in% seq(start.date, end.date, by="days")]
+  I.true <- I.obs[date.region %in% seq(start.date, end.date, by="days")]
+  R.true <- R.obs[date.region %in% seq(start.date, end.date, by="days")]
   #predict three weeks
   I.temp <- I.start; R.temp <- R.start
+  # I.temp <- I.true[1]; R.temp <- R.start
   I.predict <- c(I.temp); R.predict <- c(R.temp)
-  for(i in 1:(7*3)){
-    Delta.I.temp <- I.temp * beta_t_est.reopen - I.temp* gamma_t_est.reopen
+  rate.full <- (((1:T)+a.val*T.full)/((1 + a.val )*T.full))^2
+  rate.part <- rate.full[date.region %in% seq(start.date, end.date, by="days")]
+  for(i in 2:(7*3+1)){
+    Delta.I.temp <- (I.temp * beta_t_est.reopen - I.temp* gamma_t_est.reopen)
     Delta.R.temp <- I.temp* gamma_t_est.reopen
     I.temp <- I.temp +  Delta.I.temp
     R.temp <- R.temp +  Delta.R.temp
     I.predict <- c(I.predict, I.temp); R.predict <- c(R.predict, R.temp)
   }
+  I.predict.obs <- I.predict
+  I.predict.obs[1] <- I.true[1]
+  for(t in 2:(7*3+1)){
+    I.predict.obs[t] <- (I.predict[t] - I.predict[t-1])*rate.part[t] + I.predict.obs[t-1]
+  }
   
   par(mar = c(4., 4.5, 1.5, 1))
-  plot(seq(start.date, end.date, by="days"), I.true , col='1', ylim=c(0,max(I.true, I.predict)), lty=1, type="l", lwd = 3,
+  plot(seq(start.date, end.date, by="days"), I.true , col='1', ylim=c(0,max(I.true, I.predict.obs)), lty=1, type="l", lwd = 3,
        ylab ='Number of Infected Cases', xlab= 'Date', cex.lab=2 , cex.axis=2)
-  lines(seq(start.date, end.date, by="days"), I.predict, col='2',lty=1,type="l", lwd = 3)
+  lines(seq(start.date, end.date, by="days"), I.predict.obs, col='2',lty=1,type="l", lwd = 3)
   # legend(as.Date(date.region[length(date.region)*3/4]), 1/4*max(I,I.tilde.2), legend=c(expression(I(t)), expression(tilde(I)(t))),
   # col=c( 1,2), bg="transparent", bty = "n", 
   # lwd = 3, cex=1.5, pt.cex = 1, seg.len=1.5, y.intersp=1 , x.intersp=1)
   
+  par(mar = c(4., 4.5, 1.5, 1))
+  plot(seq(start.date, end.date, by="days"), R.true , col='1', ylim=c(0,max(R.true, R.predict)), lty=1, type="l", lwd = 3,
+       ylab ='Number of Recovered Cases', xlab= 'Date', cex.lab=2 , cex.axis=2)
+  lines(seq(start.date, end.date, by="days"), R.predict, col='2',lty=1,type="l", lwd = 3)
+  
+  
   print("True infected:")
   print(I.true[1+7]); print(I.true[1+7*2]); 
   print("estimated infected if not reopen:")
-  print(I.predict[1+7]); print(I.predict[1+7*2]); 
-  print(I.true[1+7]/I.predict[1+7]-1); print(I.true[1+7*2]/I.predict[1+7*2]-1);
+  print(I.predict.obs[1+7]); print(I.predict.obs[1+7*2]); 
+  print(I.true[1+7]/I.predict.obs[1+7]-1); print(I.true[1+7*2]/I.predict.obs[1+7*2]-1);
   # print(R.true[1+7]); print(R.true[1+7*2])
   # print(R.predict[1+7]); print(R.predict[1+7*2])
   
@@ -570,6 +894,18 @@ if(state.name %in% c("Florida", "Texas")){
 ###### Model 2.1 equal weight 
 ###### spatial components are chosen by distance
 #################################################
+a.val <- a.final
+I.rate.all <- I.rate.all.obs
+R.rate.all <- R.rate.all.obs
+for(t in 2:T){
+  # rate <- 1/(((t)+a.val*T)/((1 + a.val )*T))^2
+  rate <- 1/(((t)+a.val*T.full)/((1 + a.val )*T.full))^2
+  print(1/rate)
+  I.rate.all[t, ] <- (I.rate.all.obs[t, ] - I.rate.all.obs[t-1, ])*rate + I.rate.all[t-1, ]
+}
+
+
+
 distance_1 <- rep(1, n.domains)
 distance_1[1] <- 0
 Omega_1 <- distance_1 / sum(distance_1)
@@ -615,18 +951,42 @@ for(i in 2:T){
 }
 R.hat.2.1 <- R.hat.2.1*n.all[1]
 
-I.hat.2.1 <- rep(0,T)
-I.hat.2.1[1] <- I.rate.all[1,1]
+# I.hat.2.1 <- rep(0,T)
+# I.hat.2.1[1] <- I.rate.all[1,1]
+# for(i in 2:T){
+#   I.hat.2.1[i] <-  I.rate.all[i-1,1] + Y.hat.2.1[(i-2)*2+2]
+# }
+# I.hat.2.1 <- I.hat.2.1*n.all[1]
+# 
+# 
+# I.hat.obs.2.1 <- I.hat.2.1
+# for(t in 2:T){
+#   rate <- (((t)+a.val*T.full)/((1 + a.val )*T.full))^2
+#   print(rate)
+#   I.hat.obs.2.1[t] <- (I.hat.2.1[t] - I.hat.2.1[t-1])*rate + I.hat.obs.2.1[t-1]
+#   
+# }
+
+
+I.hat.obs.2.1 <- rep(0,T)
+I.hat.obs.2.1[1] <- I.rate.all.obs[1,1]
 for(i in 2:T){
-  I.hat.2.1[i] <-  I.rate.all[i-1,1] + Y.hat.2.1[(i-2)*2+2]
+  rate <- (((i)+a.val*T.full)/((1 + a.val )*T.full))^2
+  I.hat.obs.2.1[i] <-  I.rate.all.obs[i-1,1] + Y.hat.2.1[(i-2)*2+2]*rate
 }
-I.hat.2.1 <- I.hat.2.1*n.all[1]
+I.hat.obs.2.1 <- I.hat.obs.2.1*n.all[1]
 
 
-MRPE_2.1_I <- mean(  abs ( (     c(I.hat.2.1[-1]) - c(I[-1])     )  /c(I[-1])  )[ intersect( which(c(I[-1]) > 0  ), 2:(T-1) )   ]  )
+MRPE_2.1_I <- mean(  abs ( (     c(I.hat.obs.2.1[-1]) - c(I.obs[-1])     )  /c(I.obs[-1])  )[ intersect( which(c(I.obs[-1]) > 0  ), 2:(T-1) )   ]  )
 print(round(MRPE_2.1_I, 4))
 MRPE_2.1_R <- mean(  abs ( (     c(R.hat.2.1[-1]) - c(R[-1])     )  /c(R[-1])  )[ intersect( which(c(R[-1]) > 0  ), 2:(T-1) ) ]  )
 print(round(MRPE_2.1_R, 4))
+
+
+# MRPE_2.1_I <- mean(  abs ( (     c(I.hat.2.1[-1]) - c(I[-1])     )  /c(I[-1])  )[ intersect( which(c(I[-1]) > 0  ), 2:(T-1) )   ]  )
+# print(round(MRPE_2.1_I, 4))
+# MRPE_2.1_R <- mean(  abs ( (     c(R.hat.2.1[-1]) - c(R[-1])     )  /c(R[-1])  )[ intersect( which(c(R[-1]) > 0  ), 2:(T-1) ) ]  )
+# print(round(MRPE_2.1_R, 4))
 
 
 R.tilde.2.1 <- rep(0,T)
@@ -636,36 +996,48 @@ for(i in 2:T){
 }
 R.tilde.2.1 <- R.tilde.2.1*n.all[1]
 
+# I.tilde.2.1 <- rep(0,T)
+# I.tilde.2.1[1] <- I.rate.all[1,1]
+# for(i in 2:T){
+#   I.tilde.2.1[i] <- I.tilde.2.1[i-1] + Y.hat.2.1[(i-2)*2+2]
+# }
+# I.tilde.2.1 <- I.tilde.2.1*n.all[1]
+
 I.tilde.2.1 <- rep(0,T)
-I.tilde.2.1[1] <- I.rate.all[1,1]
+I.tilde.2.1[1] <- I.rate.all.obs[1,1]
 for(i in 2:T){
-  I.tilde.2.1[i] <- I.tilde.2.1[i-1] + Y.hat.2.1[(i-2)*2+2]
+  rate <- (((i)+a.val*T.full)/((1 + a.val )*T.full))^2
+  I.tilde.2.1[i] <- I.tilde.2.1[i-1] + Y.hat.2.1[(i-2)*2+2]*rate
 }
 I.tilde.2.1 <- I.tilde.2.1*n.all[1]
 
 
-# filename <- paste0("Infected_", state.lowernames[1] ,"_2.1.pdf")
-# pdf(filename, width=11, height=8.5)
-par(mar = c(4., 4.5, 1.5, 1))
-plot(date.region, I, col='1', ylim=c(0,max(I, I.tilde.2.1)),lty=1, type="l", lwd = 3,
-     ylab ='Number of Infected Cases', xlab= 'Date', cex.lab=2, cex.axis=2)
+
+
+
+filename <- paste0("Infected_", state.lowernames[1] ,"_2.1.pdf")
+pdf(filename, width=11, height=8.5)
+par(mar = c(4.5, 6, 2, 1.5), mgp=c(3.5, 1.2, 0))
+plot(date.region, I.obs, col='1', ylim=c(0,max(I.obs, I.tilde.2.1)),lty=1, type="l", lwd = 3,
+     ylab ='Number of Infected Cases', xlab= 'Date', cex.lab = 3, cex.axis=3)
 lines(date.region, I.tilde.2.1, col='2', lty=1, type="l", lwd = 3)
-legend(as.Date(date.region[length(date.region)*3/4]), 1/4*max(I, I.tilde.2.1), legend=c(expression(I(t)), expression(tilde(I)(t))),
-       col=c( 1,2),bg="transparent",bty = "n", 
-       lwd = 3, cex=1.5, pt.cex = 1,seg.len=1.5, y.intersp=1 , x.intersp=1)
-# dev.off()
+legend(as.Date(date.region[length(date.region)*3/4]), 1/4*max(I.obs, I.tilde.2.1), 
+       legend=c(expression(I(t)), expression(tilde(I)(t))),
+       col=c( 1, 2),bg="transparent",bty = "n", 
+       lwd = 3, cex=2, pt.cex = 2,seg.len=1.5, y.intersp=1 , x.intersp=1)
+dev.off()
 
 
-# filename <- paste0("Recovered_", state.lowernames[1] ,"_2.1.pdf")
-# pdf(filename, width=11, height=8.5)
-par(mar = c(4., 4.5, 1.5, 1))
+filename <- paste0("Recovered_", state.lowernames[1] ,"_2.1.pdf")
+pdf(filename, width=11, height=8.5)
+par(mar = c(4.5, 6, 2, 1.5), mgp=c(3.5, 1.2, 0))
 plot(date.region, R, type='l',col='1',ylim=c(0,max(R, R.tilde.2.1)),lty=1,lwd = 3,
-     ylab ='Number of Recovered Cases', xlab= 'Date', cex.lab=2 , cex.axis=2)
+     ylab ='Number of Recovered Cases', xlab= 'Date', cex.lab=3 , cex.axis=3)
 lines(date.region, R.tilde.2.1, col='2',lty=1,type="l",lwd = 3)
 legend(as.Date(date.region[length(date.region)*3/4]), 1/4*max(R, R.tilde.2.1), legend=c(expression(R(t)), expression(tilde(R)(t))),
        col=c( 1,2),bg="transparent",bty = "n", 
-       lwd = 3, cex=1.5, pt.cex = 1,seg.len=1.5, y.intersp=1 , x.intersp=1)
-# dev.off()
+       lwd = 3, cex=2, pt.cex = 2,seg.len=1.5, y.intersp=1 , x.intersp=1)
+dev.off()
 
 
 #################################################
@@ -725,15 +1097,32 @@ for(i in 2:T){
 }
 R.hat.2.2 <- R.hat.2.2*n.all[1]
 
-I.hat.2.2 <- rep(0,T)
-I.hat.2.2[1] <- I.rate.all[1,1]
+# I.hat.2.2 <- rep(0,T)
+# I.hat.2.2[1] <- I.rate.all[1,1]
+# for(i in 2:T){
+#   I.hat.2.2[i] <-  I.rate.all[i-1,1] + Y.hat.2.2[(i-2)*2+2]
+# }
+# I.hat.2.2 <- I.hat.2.2*n.all[1]
+# 
+# I.hat.obs.2.2 <- I.hat.2.2
+# for(t in 2:T){
+#   rate <- (((t)+a.val*T.full)/((1 + a.val )*T.full))^2
+#   print(rate)
+#   I.hat.obs.2.2[t] <- (I.hat.2.2[t] - I.hat.2.2[t-1])*rate + I.hat.obs.2.2[t-1]
+#   
+# }
+
+
+I.hat.obs.2.2 <- rep(0,T)
+I.hat.obs.2.2[1] <- I.rate.all.obs[1,1]
 for(i in 2:T){
-  I.hat.2.2[i] <-  I.rate.all[i-1,1] + Y.hat.2.2[(i-2)*2+2]
+  rate <- (((i)+a.val*T.full)/((1 + a.val )*T.full))^2
+  I.hat.obs.2.2[i] <-  I.rate.all.obs[i-1,1] + Y.hat.2.2[(i-2)*2+2]*rate
 }
-I.hat.2.2 <- I.hat.2.2*n.all[1]
+I.hat.obs.2.2 <- I.hat.obs.2.2*n.all[1]
 
 
-MRPE_2.2_I <- mean(  abs ( (     c(I.hat.2.2[-1]) - c(I[-1])     )  /c(I[-1])  )[intersect( which(c(I[-1]) > 0  ), 2:(T-1) ) ]  )
+MRPE_2.2_I <- mean(  abs ( (     c(I.hat.obs.2.2[-1]) - c(I.obs[-1]))  /c(I.obs[-1])  )[intersect( which(c(I.obs[-1]) > 0  ), 2:(T-1) ) ]  )
 print(round(MRPE_2.2_I,4))
 MRPE_2.2_R <- mean(  abs ( (     c(R.hat.2.2[-1]) - c(R[-1])     )  /c(R[-1])  )[intersect( which(c(R[-1]) > 0  ), 2:(T-1) ) ]  )
 print(round(MRPE_2.2_R,4))
@@ -747,36 +1136,46 @@ for(i in 2:T){
 }
 R.tilde.2.2 <- R.tilde.2.2*n.all[1]
 
+# I.tilde.2.2 <- rep(0,T)
+# I.tilde.2.2[1] <- I.rate.all[1,1]
+# for(i in 2:T){
+#   I.tilde.2.2[i] <- I.tilde.2.2[i-1] + Y.hat.2.2[(i-2)*2+2]
+# }
+# I.tilde.2.2 <- I.tilde.2.2*n.all[1]
+
 I.tilde.2.2 <- rep(0,T)
-I.tilde.2.2[1] <- I.rate.all[1,1]
+I.tilde.2.2[1] <- I.rate.all.obs[1,1]
 for(i in 2:T){
-  I.tilde.2.2[i] <- I.tilde.2.2[i-1] + Y.hat.2.2[(i-2)*2+2]
+  rate <- (((i)+a.val*T.full)/((1 + a.val )*T.full))^2
+  I.tilde.2.2[i] <- I.tilde.2.2[i-1] + Y.hat.2.2[(i-2)*2+2]*rate
 }
 I.tilde.2.2 <- I.tilde.2.2*n.all[1]
 
 
-# filename <- paste0("Infected_", state.lowernames[1] ,"_2.2.pdf")
-# pdf(filename, width=11, height=8.5)
-par(mar = c(4., 4.5, 1.5, 1))
-plot(date.region, I, col='1', ylim=c(0,max(I, I.tilde.2.2)), lty=1, type="l", lwd = 3,
-     ylab ='Number of Infected Cases', xlab= 'Date',cex.lab=2, cex.axis=2)
+
+filename <- paste0("Infected_", state.lowernames[1] ,"_2.2.pdf")
+pdf(filename, width=11, height=8.5)
+par(mar = c(4.5, 6, 2, 1.5), mgp=c(3.5, 1.2, 0))
+plot(date.region, I.obs, col='1', ylim=c(0,max(I.obs, I.tilde.2.2)), lty=1, type="l", lwd = 3,
+     ylab ='Number of Infected Cases', xlab= 'Date', cex.lab=3, cex.axis=3)
 lines(date.region, I.tilde.2.2, col='2', lty=1, type="l", lwd = 3)
-legend(as.Date(date.region[length(date.region)*3/4]), 1/4*max(I, I.tilde.2.2), legend=c(expression(I(t)), expression(tilde(I)(t))),
+legend(as.Date(date.region[length(date.region)*3/4]), 1/4*max(I.obs, I.tilde.2.2),
+       legend=c(expression(I(t)), expression(tilde(I)(t))),
        col=c( 1,2), bg="transparent", bty = "n", 
-       lwd = 3, cex=1.5, pt.cex = 1, seg.len=1.5, y.intersp=1 , x.intersp=1)
-# dev.off()
+       lwd = 3, cex=2, pt.cex = 2, seg.len=1.5, y.intersp=1 , x.intersp=1)
+dev.off()
 
 
-# filename <- paste0("Recovered_", state.lowernames[1], "_2.2.pdf")
-# pdf(filename, width=11, height=8.5)
-par(mar = c(4., 4.5, 1.5, 1))
+filename <- paste0("Recovered_", state.lowernames[1], "_2.2.pdf")
+pdf(filename, width=11, height=8.5)
+par(mar = c(4.5, 6, 2, 1.5), mgp=c(3.5, 1.2, 0))
 plot(date.region, R, type='l',col='1', ylim=c(0,max(R, R.tilde.2.2)), lty=1, lwd = 3,
-     ylab ='Number of Recovered Cases', xlab= 'Date', cex.lab=2 , cex.axis=2)
+     ylab ='Number of Recovered Cases', xlab= 'Date', cex.lab=3 , cex.axis=3)
 lines(date.region, R.tilde.2.2, col='2',lty=1,type="l",lwd = 3)
 legend(as.Date(date.region[length(date.region)*3/4]), 1/4*max(R, R.tilde.2.2), legend=c(expression(R(t)), expression(tilde(R)(t))),
        col=c( 1,2), bg="transparent", bty = "n", 
-       lwd = 3, cex=1.5, pt.cex = 1, seg.len=1.5, y.intersp=1, x.intersp=1)
-# dev.off()
+       lwd = 3, cex=2, pt.cex = 2, seg.len=1.5, y.intersp=1, x.intersp=1)
+dev.off()
 
 
 #################################################
@@ -845,18 +1244,36 @@ deaths.all<- multi_full[,seq(3, ncol(multi_full), 2)]
 T <- nrow(cases.all);
 #R: the number of people who have recovered
 #using the nationwide recovered and death number to predict the recovered number
-R.all <- floor((1 + (5.5))*deaths.all);
+R.all <- floor((1 + (10))*deaths.all);
+if( state.name == "New York"){
+  R.all <- floor((1 + (5.5))*deaths.all);
+}
+
 #I: the number of people infected at time t
 I.all <- cases.all - R.all;
 
 #S: the number of susceptible people
 n.all.matrix <- matrix(rep(n.all,T),ncol = n.domains,byrow = TRUE)
-S.all <- n.all.matrix - I.all - R.all;
+immune.rate <- 0.9
+S.all <- n.all.matrix - I.all - R.all*immune.rate;
+# S.all <- n.all.matrix - I.all - R.all;
 
 #the fraction of S, I and R
 S.rate.all <- sapply(1:n.domains, function(jjj) S.all[,jjj]/n.all[jjj])
 I.rate.all <- sapply(1:n.domains, function(jjj) I.all[,jjj]/n.all[jjj])
 R.rate.all <- sapply(1:n.domains, function(jjj) R.all[,jjj]/n.all[jjj])
+
+
+I.rate.all.obs <- I.rate.all
+R.rate.all.obs <- R.rate.all
+
+a.val <- a.final
+for(t in 2:T){
+  # rate <- 1/(((t)+a.val*T)/((1 + a.val )*T))^2
+  rate <- 1/(((t)+a.val*T.full)/((1 + a.val )*T.full))^2
+  print(1/rate)
+  I.rate.all[t, ] <- (I.rate.all.obs[t, ] - I.rate.all.obs[t-1, ])*rate + I.rate.all[t-1, ]
+}
 
 n.regions <- ncol(I.rate.all)
 y.list <- vector("list", T-1);
@@ -881,7 +1298,9 @@ state.names <- state.names.all[state.index]
 state.lowernames <- state.lowernames.all[state.index]
 state.names
 state.lowernames
-
+state.res <-xtable(matrix(c(state.names[1], 
+                            do.call(paste, c(as.list(state.names[-1]), sep = ", ")) ), nrow = 1))
+print(state.res, include.rownames = FALSE)
 
 n.all.full <- n.all
 S.rate.all.full <- S.rate.all
@@ -894,37 +1313,41 @@ S.rate.all <- S.rate.all[, state.index]
 I.rate.all <- I.rate.all[, state.index]
 R.rate.all <- R.rate.all[, state.index]
 
+I.rate.all.obs.part <- I.rate.all.obs[, state.index]
+R.rate.all.obs.part <- R.rate.all.obs[, state.index]
+
 date.region <- multi_full$date
-I <- I.all[,1]
-R <- R.all[,1]
+# I.rate.all.obs <- I.rate.all
+# R.rate.all.obs <- R.rate.all
 cols <- brewer.pal(n.domains, "Spectral")
 
 
-# filename <- paste0("I_rate_", state.lowernames[1], "_all_new.pdf")
-# pdf(filename, width=11, height=8.5)
-par(mar = c(4., 4.5, 1.5, 1))
-plot(multi_full$date, I.rate.all[,1], col=cols[1], lty=1,type="l", lwd = 3, ylim = c(0,max(I.rate.all)),
-     ylab ='Fraction of Infected Cases', xlab= 'Date', cex.lab=2 , cex.axis=2)
+filename <- paste0("I_rate_", state.lowernames[1], "_all_new.pdf")
+pdf(filename, width=11, height=8.5)
+par(mar = c(4.5, 6, 2, 1.5), mgp=c(3.5, 1.2, 0))
+plot(multi_full$date, I.rate.all.obs.part[,1], col=cols[1], lty=1,type="l", lwd = 3, 
+     ylim = c(0, max(I.rate.all.obs.part)),
+     ylab ='Fraction of Infected Cases', xlab= 'Date', cex.lab=3 , cex.axis=3)
 for(i in 2:length(state.names)){
-  lines(multi_full$date, I.rate.all[,i], col=cols[i], lty=1, type="l", lwd = 3)
+  lines(multi_full$date, I.rate.all.obs.part[,i], col=cols[i], lty=1, type="l", lwd = 3)
 }
-legend(multi_full$date[1], max(I.rate.all) , legend=c(state.names),
+legend(multi_full$date[1], max(I.rate.all.obs.part) , legend=c(state.names),
        col=cols,bg="transparent",bty = "n",
-       lwd = 3, cex=1.5, pt.cex = 1, seg.len=1.5, y.intersp=1, x.intersp=1)
-# dev.off()
+       lwd = 3, cex=2, pt.cex = 2, seg.len=1.5, y.intersp=1, x.intersp=1)
+dev.off()
 
-# filename <- paste0("R_rate_", state.lowernames[1], "_all_new.pdf")
-# pdf(filename, width=11, height=8.5)
-par(mar = c(4., 4.5, 1.5, 1))
+filename <- paste0("R_rate_", state.lowernames[1], "_all_new.pdf")
+pdf(filename, width=11, height=8.5)
+par(mar = c(4.5, 6, 2, 1.5), mgp=c(3.5, 1.2, 0))
 plot(multi_full$date, R.rate.all[,1] , col=cols[1], lty=1,type="l", lwd = 3, ylim = c(0,max(R.rate.all)),
-     ylab ='Fraction of Recovered Cases', xlab= 'Date',cex.lab=2 , cex.axis=2)
+     ylab ='Fraction of Recovered Cases', xlab= 'Date',cex.lab=3 , cex.axis=3)
 for(i in 2:length(state.names)){
   lines(multi_full$date, R.rate.all[,i] ,col=cols[i],lty=1,type="l", lwd = 3)
 }
 legend(multi_full$date[1], max(R.rate.all), legend=c(state.names),
        col=cols,bg="transparent",bty = "n",
-       lwd = 3, cex=1.5, pt.cex = 1, seg.len=1.5, y.intersp=1 , x.intersp=1)
-# dev.off()
+       lwd = 3, cex=2, pt.cex = 2, seg.len=1.5, y.intersp=1 , x.intersp=1)
+dev.off()
 
 distance_3 <- rep(0, n.domains)
 #Power Distance Weights.
@@ -949,7 +1372,7 @@ neighbor.weighted_3 <- as.matrix(c(neighbor.weighted_3[c(1,2),], neighbor.weight
 
 
 p.x <- ncol(X)
-p.y <-ncol(Y)
+p.y <- ncol(Y)
 n <- nrow(X)
 
 
@@ -973,15 +1396,33 @@ for(i in 2:T){
 }
 R.hat.2.3 <- R.hat.2.3*n.all[1]
 
-I.hat.2.3 <- rep(0,T)
-I.hat.2.3[1] <- I.rate.all[1,1]
+# I.hat.2.3 <- rep(0,T)
+# I.hat.2.3[1] <- I.rate.all[1,1]
+# for(i in 2:T){
+#   I.hat.2.3[i] <-  I.rate.all[i-1,1] + Y.hat.2.3[(i-2)*2+2]
+# }
+# I.hat.2.3 <- I.hat.2.3*n.all[1]
+# 
+# 
+# I.hat.obs.2.3 <- I.hat.2.3
+# for(t in 2:T){
+#   rate <- (((t)+a.val*T.full)/((1 + a.val )*T.full))^2
+#   print(rate)
+#   I.hat.obs.2.3[t] <- (I.hat.2.3[t] - I.hat.2.3[t-1])*rate + I.hat.obs.2.3[t-1]
+#   
+# }
+
+
+I.hat.obs.2.3 <- rep(0,T)
+I.hat.obs.2.3[1] <- I.rate.all.obs[1,1]
 for(i in 2:T){
-  I.hat.2.3[i] <-  I.rate.all[i-1,1] + Y.hat.2.3[(i-2)*2+2]
+  rate <- (((i)+a.val*T.full)/((1 + a.val )*T.full))^2
+  I.hat.obs.2.3[i] <-  I.rate.all.obs[i-1,1] + Y.hat.2.3[(i-2)*2+2]*rate
 }
-I.hat.2.3 <- I.hat.2.3*n.all[1]
+I.hat.obs.2.3 <- I.hat.obs.2.3*n.all[1]
 
 
-MRPE_2.3_I <- mean(  abs ( (     c(I.hat.2.3[-1]) - c(I[-1])     )  /c(I[-1])  )[intersect( which(c(I[-1]) > 0  ), 2:(T-1) ) ]  )
+MRPE_2.3_I <- mean(  abs ( (     c(I.hat.obs.2.3[-1]) - c(I.obs[-1]))  /c(I.obs[-1])  )[intersect( which(c(I.obs[-1]) > 0  ), 2:(T-1) ) ]  )
 print(round(MRPE_2.3_I,4))
 MRPE_2.3_R <- mean(  abs ( (     c(R.hat.2.3[-1]) - c(R[-1])     )  /c(R[-1])  )[intersect( which(c(R[-1]) > 0  ), 2:(T-1) ) ]  )
 print(round(MRPE_2.3_R,4))
@@ -995,35 +1436,38 @@ for(i in 2:T){
 }
 R.tilde.2.3 <- R.tilde.2.3*n.all[1]
 
-I.tilde.2.3 <- rep(0,T)
-I.tilde.2.3[1] <- I.rate.all[1,1]
+I.tilde.2.3 <- rep(0, T)
+I.tilde.2.3[1] <- I.rate.all.obs[1,1]
 for(i in 2:T){
-  I.tilde.2.3[i] <- I.tilde.2.3[i-1] + Y.hat.2.3[(i-2)*2+2]
+  rate <- (((i)+a.val*T.full)/((1 + a.val )*T.full))^2
+  I.tilde.2.3[i] <- I.tilde.2.3[i-1] + Y.hat.2.3[(i-2)*2+2]*rate
 }
 I.tilde.2.3 <- I.tilde.2.3*n.all[1]
 
 
-# filename <- paste0("Infected_", state.lowernames[1] ,"_2.3.pdf")
-# pdf(filename, width=11, height=8.5)
-par(mar = c(4., 4.5, 1.5, 1))
-plot(date.region, I, col='1', ylim=c(0,max(I, I.tilde.2.3)), lty=1, type="l", lwd = 3,
-     ylab ='Number of Infected Cases', xlab= 'Date',cex.lab=2, cex.axis=2)
-lines(date.region, I.tilde.2.3, col='2', lty=1, type="l", lwd = 3)
-legend(as.Date(date.region[length(date.region)*3/4]), 1/4*max(I, I.tilde.2.3), legend=c(expression(I(t)), expression(tilde(I)(t))),
-       col=c( 1,2), bg="transparent", bty = "n", 
-       lwd = 3, cex=1.5, pt.cex = 1, seg.len=1.5, y.intersp=1 , x.intersp=1)
-# dev.off()
 
-# filename <- paste0("Recovered_", state.lowernames[1], "_2.3.pdf")
-# pdf(filename, width=11, height=8.5)
-par(mar = c(4., 4.5, 1.5, 1))
+filename <- paste0("Infected_", state.lowernames[1] ,"_2.3.pdf")
+pdf(filename, width=11, height=8.5)
+par(mar = c(4.5, 6, 2, 1.5), mgp=c(3.5, 1.2, 0))
+plot(date.region, I.obs, col='1', ylim=c(0,max(I.obs, I.tilde.2.3)), lty=1, type="l", lwd = 3,
+     ylab ='Number of Infected Cases', xlab= 'Date',cex.lab=3, cex.axis=3)
+lines(date.region, I.tilde.2.3, col='2', lty=1, type="l", lwd = 3)
+legend(as.Date(date.region[length(date.region)*3/4]), 1/4*max(I.obs, I.tilde.2.3), 
+       legend=c(expression(I(t)), expression(tilde(I)(t))),
+       col=c( 1,2), bg="transparent", bty = "n", 
+       lwd = 3, cex=2, pt.cex = 2, seg.len=1.5, y.intersp=1 , x.intersp=1)
+dev.off()
+
+filename <- paste0("Recovered_", state.lowernames[1], "_2.3.pdf")
+pdf(filename, width=11, height=8.5)
+par(mar = c(4.5, 6, 2, 1.5), mgp=c(3.5, 1.2, 0))
 plot(date.region, R, type='l',col='1', ylim=c(0,max(R, R.tilde.2.3)), lty=1, lwd = 3,
-     ylab ='Number of Recovered Cases', xlab= 'Date', cex.lab=2 , cex.axis=2)
+     ylab ='Number of Recovered Cases', xlab= 'Date', cex.lab=3 , cex.axis=3)
 lines(date.region, R.tilde.2.3, col='2',lty=1,type="l",lwd = 3)
 legend(as.Date(date.region[length(date.region)*3/4]), 1/4*max(R, R.tilde.2.3), legend=c(expression(R(t)), expression(tilde(R)(t))),
        col=c( 1,2), bg="transparent", bty = "n", 
-       lwd = 3, cex=1.5, pt.cex = 1, seg.len=1.5, y.intersp=1, x.intersp=1)
-# dev.off()
+       lwd = 3, cex=2, pt.cex = 2, seg.len=1.5, y.intersp=1, x.intersp=1)
+dev.off()
 
 
 #####################################
@@ -1059,17 +1503,17 @@ for(i in 1:n){
 }
 res <- res*n.all[1]
 
-# filename <- paste0("acf_residual_Delta_I_", state.lowernames[1], "_b_",  b_t, ".pdf")
-# pdf(filename, width=11, height=8.5)
-par(mar = c(4., 4.5, 1.5, 1))
-acf(residual_Delta.I, cex.lab=2 , cex.axis=2  , lwd = 3)
-# dev.off()
+filename <- paste0("acf_residual_Delta_I_", state.lowernames[1], "_b_",  b_t, ".pdf")
+pdf(filename, width=11, height=8.5)
+par(mar = c(4.8, 6, 1.7, 1.5), mgp=c(3.5, 1.1, 0))
+acf(residual_Delta.I, cex.lab=3 , cex.axis=3  , lwd = 3)
+dev.off()
 
-# filename <- paste0("acf_residual_Delta_R_", state.lowernames[1], "_b_",  b_t, ".pdf")
-# pdf(filename, width=11, height=8.5)
-par(mar = c(4., 4.5, 1.5, 1))
-acf(residual_Delta.R, cex.lab=2 , cex.axis=2  , lwd = 3)
-# dev.off()
+filename <- paste0("acf_residual_Delta_R_", state.lowernames[1], "_b_",  b_t, ".pdf")
+pdf(filename, width=11, height=8.5)
+par(mar = c(4.8, 6, 1.7, 1.5), mgp=c(3.5, 1.1, 0))
+acf(residual_Delta.R, cex.lab=3 , cex.axis=3  , lwd = 3)
+dev.off()
 
 
 residual.matrix <- cbind(residual_Delta.I, residual_Delta.R)
@@ -1121,23 +1565,23 @@ if(is.null(temp.var$cp.final)){
 }
 
 
-# filename <- paste0("var_coef_", state.lowernames[1], "_b_",  b_t, ".pdf")
-# pdf(filename, width = 11, height = 8.5)
+filename <- paste0("var_coef_", state.lowernames[1], "_b_",  b_t, ".pdf")
+pdf(filename, width = 11, height = 8.5)
 par(mar = c(4., 4.5, 1.5, 1))
 print(plot.ar.matrix(coef.matrix, p = p.est))
-# dev.off()
-
-# filename <- paste0("acf_residual_tilde_Delta_I_", state.lowernames[1], "_b_",  b_t, ".pdf")
-# pdf(filename, width=11, height = 8.5)
-par(mar = c(4., 4.5, 1.5, 1))
-acf(residual.tilde[, 1], cex.lab=2 , cex.axis=2, lwd = 3)
 dev.off()
 
-# filename <- paste0("acf_residual_tilde_Delta_R_", state.lowernames[1], "_b_",  b_t, ".pdf")
-# pdf(filename, width=11, height=8.5)
-par(mar = c(4., 4.5, 1.5, 1))
-acf(residual.tilde[, 2], cex.lab=2 , cex.axis=2, lwd = 3)
-# dev.off()
+filename <- paste0("acf_residual_tilde_Delta_I_", state.lowernames[1], "_b_",  b_t, ".pdf")
+pdf(filename, width=11, height = 8.5)
+par(mar = c(4.8, 6, 1.7, 1.5), mgp=c(3.5, 1.1, 0))
+acf(residual.tilde[, 1], cex.lab=3 , cex.axis=3, lwd = 3)
+dev.off()
+
+filename <- paste0("acf_residual_tilde_Delta_R_", state.lowernames[1], "_b_",  b_t, ".pdf")
+pdf(filename, width=11, height=8.5)
+par(mar = c(4.8, 6, 1.7, 1.5), mgp=c(3.5, 1.1, 0))
+acf(residual.tilde[, 2], cex.lab=3 , cex.axis=3, lwd = 3)
+dev.off()
 
 
 #vectorize the fitted residuals
@@ -1158,16 +1602,25 @@ for(i in 2:T){
 }
 R.hat.3 <- R.hat.3*n.all[1]
 
-I.hat.3 <- rep(0,T)
-I.hat.3[1] <- I.rate.all[1,1]
+# I.hat.3 <- rep(0,T)
+# I.hat.3[1] <- I.rate.all[1,1]
+# for(i in 2:T){
+#   I.hat.3[i] <-  I.rate.all[i-1,1] + Y.hat.3[(i-2)*2+2]
+# }
+# I.hat.3 <- I.hat.3*n.all[1]
+
+I.hat.obs.3 <- rep(0,T)
+I.hat.obs.3[1] <- I.rate.all.obs[1,1]
 for(i in 2:T){
-  I.hat.3[i] <-  I.rate.all[i-1,1] + Y.hat.3[(i-2)*2+2]
+  rate <- (((i)+a.val*T.full)/((1 + a.val )*T.full))^2
+  I.hat.obs.3[i] <-  I.rate.all.obs[i-1,1] + Y.hat.3[(i-2)*2+2]*rate
 }
-I.hat.3 <- I.hat.3*n.all[1]
+I.hat.obs.3 <- I.hat.obs.3*n.all[1]
 
 
 
-MRPE_3_I <- mean(  abs ( (     c(I.hat.3[-1]) - c(I[-1])     )  /c(I[-1])  )[intersect( which(c(I[-1]) > 0  ), 2:(T-1) ) ]  )
+
+MRPE_3_I <- mean(  abs ( (     c(I.hat.obs.3[-1]) - c(I.obs[-1]))  /c(I.obs[-1])  )[intersect( which(c(I.obs[-1]) > 0  ), 2:(T-1) ) ]  )
 print(round(MRPE_3_I,4))
 MRPE_3_R <- mean(  abs ( (     c(R.hat.3[-1]) - c(R[-1])     )  /c(R[-1])  )[intersect( which(c(R[-1]) > 0  ), 2:(T-1) ) ]  )
 print(round(MRPE_3_R,4))
@@ -1184,32 +1637,35 @@ R.tilde.3 <- R.tilde.3*n.all[1]
 I.tilde.3 <- rep(0,T)
 I.tilde.3[1] <- I.rate.all[1,1]
 for(i in 2:T){
-  I.tilde.3[i] <- I.tilde.3[i-1] + Y.hat.3[(i-2)*2+2]
+  rate <- (((i)+a.val*T.full)/((1 + a.val )*T.full))^2
+  I.tilde.3[i] <- I.tilde.3[i-1] + Y.hat.3[(i-2)*2+2]*rate
 }
 I.tilde.3 <- I.tilde.3*n.all[1]
 
 
-# filename <- paste0("Infected_", state.lowernames[1] ,"_3.pdf")
-# pdf(filename, width=11, height=8.5)
-par(mar = c(4., 4.5, 1.5, 1))
-plot(date.region, I, col='1', ylim=c(0,max(I, I.tilde.3)), lty=1, type="l", lwd = 3,
-     ylab ='Number of Infected Cases', xlab= 'Date',cex.lab=2, cex.axis=2)
-lines(date.region, I.tilde.3, col='2', lty=1, type="l", lwd = 3)
-legend(as.Date(date.region[length(date.region)*3/4]), 1/4*max(I, I.tilde.3), legend=c(expression(I(t)), expression(tilde(I)(t))),
-       col=c( 1,2), bg="transparent", bty = "n", 
-       lwd = 3, cex=1.5, pt.cex = 1, seg.len=1.5, y.intersp=1 , x.intersp=1)
-# dev.off()
 
-# filename <- paste0("Recovered_", state.lowernames[1], "_3.pdf")
-# pdf(filename, width=11, height=8.5)
-par(mar = c(4., 4.5, 1.5, 1))
+filename <- paste0("Infected_", state.lowernames[1] ,"_3.pdf")
+pdf(filename, width=11, height=8.5)
+par(mar = c(4.5, 6, 2, 1.5), mgp=c(3.5, 1.2, 0))
+plot(date.region, I.obs, col='1', ylim=c(0,max(I.obs, I.tilde.3)), lty=1, type="l", lwd = 3,
+     ylab ='Number of Infected Cases', xlab= 'Date',cex.lab=3, cex.axis=3)
+lines(date.region, I.tilde.3, col='2', lty=1, type="l", lwd = 3)
+legend(as.Date(date.region[length(date.region)*3/4]), 1/4*max(I.obs, I.tilde.3), 
+       legend=c(expression(I(t)), expression(tilde(I)(t))),
+       col=c( 1,2), bg="transparent", bty = "n", 
+       lwd = 3, cex=2, pt.cex = 2, seg.len=1.5, y.intersp=1 , x.intersp=1)
+dev.off()
+
+filename <- paste0("Recovered_", state.lowernames[1], "_3.pdf")
+pdf(filename, width=11, height=8.5)
+par(mar = c(4.5, 6, 2, 1.5), mgp=c(3.5, 1.2, 0))
 plot(date.region, R, type='l',col='1', ylim=c(0,max(R, R.tilde.3)), lty=1, lwd = 3,
-     ylab ='Number of Recovered Cases', xlab= 'Date', cex.lab=2 , cex.axis=2)
+     ylab ='Number of Recovered Cases', xlab= 'Date', cex.lab=3 , cex.axis=3)
 lines(date.region, R.tilde.3, col='2',lty=1,type="l",lwd = 3)
 legend(as.Date(date.region[length(date.region)*3/4]), 1/4*max(R, R.tilde.3), legend=c(expression(R(t)), expression(tilde(R)(t))),
        col=c( 1,2), bg="transparent", bty = "n", 
-       lwd = 3, cex=1.5, pt.cex = 1, seg.len=1.5, y.intersp=1, x.intersp=1)
-# dev.off()
+       lwd = 3, cex=2, pt.cex = 2, seg.len=1.5, y.intersp=1, x.intersp=1)
+dev.off()
 
 ##################################################
 # model 2.4 : similarity based weight, 
@@ -1269,15 +1725,23 @@ for(i in 2:T){
 }
 R.hat.2.4 <- R.hat.2.4*n.all[1]
 
-I.hat.2.4 <- rep(0,T)
-I.hat.2.4[1] <- I.rate.all[1,1]
+# I.hat.2.4 <- rep(0,T)
+# I.hat.2.4[1] <- I.rate.all[1,1]
+# for(i in 2:T){
+#   I.hat.2.4[i] <-  I.rate.all[i-1,1] + Y.hat.2.4[(i-2)*2+2]
+# }
+# I.hat.2.4 <- I.hat.2.4*n.all[1]
+
+I.hat.obs.2.4 <- rep(0,T)
+I.hat.obs.2.4[1] <- I.rate.all.obs[1,1]
 for(i in 2:T){
-  I.hat.2.4[i] <-  I.rate.all[i-1,1] + Y.hat.2.4[(i-2)*2+2]
+  rate <- (((i)+a.val*T.full)/((1 + a.val )*T.full))^2
+  I.hat.obs.2.4[i] <-  I.rate.all.obs[i-1,1] + Y.hat.2.4[(i-2)*2+2]*rate
 }
-I.hat.2.4 <- I.hat.2.4*n.all[1]
+I.hat.obs.2.4 <- I.hat.obs.2.4*n.all[1]
 
 
-MRPE_2.4_I <- mean(  abs ( (     c(I.hat.2.4[-1]) - c(I[-1])     )  /c(I[-1])  )[intersect( which(c(I[-1]) > 0  ), 2:(T-1) ) ]  )
+MRPE_2.4_I <- mean(  abs ( (     c(I.hat.obs.2.4[-1]) - c(I.obs[-1]))  /c(I.obs[-1]))[intersect( which(c(I.obs[-1]) > 0  ), 2:(T-1) ) ]  )
 print(round(MRPE_2.4_I,4))
 MRPE_2.4_R <- mean(  abs ( (     c(R.hat.2.4[-1]) - c(R[-1])     )  /c(R[-1])  )[intersect( which(c(R[-1]) > 0  ), 2:(T-1) ) ]  )
 print(round(MRPE_2.4_R,4))
@@ -1292,34 +1756,39 @@ for(i in 2:T){
 R.tilde.2.4 <- R.tilde.2.4*n.all[1]
 
 I.tilde.2.4 <- rep(0,T)
-I.tilde.2.4[1] <- I.rate.all[1,1]
+I.tilde.2.4[1] <- I.rate.all.obs[1,1]
 for(i in 2:T){
-  I.tilde.2.4[i] <- I.tilde.2.4[i-1] + Y.hat.2.4[(i-2)*2+2]
+  rate <- (((i)+a.val*T.full)/((1 + a.val )*T.full))^2
+  I.tilde.2.4[i] <- I.tilde.2.4[i-1] + Y.hat.2.4[(i-2)*2+2]*rate
 }
 I.tilde.2.4 <- I.tilde.2.4*n.all[1]
 
 
-# filename <- paste0("Infected_", state.lowernames[1] ,"_2.4.pdf")
-# pdf(filename, width=11, height=8.5)
-par(mar = c(4., 4.5, 1.5, 1))
-plot(date.region, I, col='1', ylim=c(0,max(I, I.tilde.2.4)), lty=1, type="l", lwd = 3,
-     ylab ='Number of Infected Cases', xlab= 'Date',cex.lab=2, cex.axis=2)
-lines(date.region, I.tilde.2.4, col='2', lty=1, type="l", lwd = 3)
-legend(as.Date(date.region[length(date.region)*3/4]), 1/4*max(I, I.tilde.2.4), legend=c(expression(I(t)), expression(tilde(I)(t))),
-       col=c( 1,2), bg="transparent", bty = "n", 
-       lwd = 3, cex=1.5, pt.cex = 1, seg.len=1.5, y.intersp=1 , x.intersp=1)
-# dev.off()
 
-# filename <- paste0("Recovered_", state.lowernames[1], "_2.4.pdf")
-# pdf(filename, width=11, height=8.5)
-par(mar = c(4., 4.5, 1.5, 1))
+
+
+filename <- paste0("Infected_", state.lowernames[1] ,"_2.4.pdf")
+pdf(filename, width=11, height=8.5)
+par(mar = c(4.5, 6, 2, 1.5), mgp=c(3.5, 1.2, 0))
+plot(date.region, I.obs, col='1', ylim=c(0,max(I.obs, I.tilde.2.4)), lty=1, type="l", lwd = 3,
+     ylab ='Number of Infected Cases', xlab= 'Date',cex.lab=3, cex.axis=3)
+lines(date.region, I.tilde.2.4, col='2', lty=1, type="l", lwd = 3)
+legend(as.Date(date.region[length(date.region)*3/4]), 1/4*max(I.obs, I.tilde.2.4), 
+       legend=c(expression(I(t)), expression(tilde(I)(t))),
+       col=c( 1,2), bg="transparent", bty = "n", 
+       lwd = 3, cex=2, pt.cex = 2, seg.len=1.5, y.intersp=1 , x.intersp=1)
+dev.off()
+
+filename <- paste0("Recovered_", state.lowernames[1], "_2.4.pdf")
+pdf(filename, width=11, height=8.5)
+par(mar = c(4.5, 6, 2, 1.5), mgp=c(3.5, 1.2, 0))
 plot(date.region, R, type='l',col='1', ylim=c(0,max(R, R.tilde.2.4)), lty=1, lwd = 3,
-     ylab ='Number of Recovered Cases', xlab= 'Date', cex.lab=2 , cex.axis=2)
+     ylab ='Number of Recovered Cases', xlab= 'Date', cex.lab=3 , cex.axis=3)
 lines(date.region, R.tilde.2.4, col='2',lty=1,type="l",lwd = 3)
 legend(as.Date(date.region[length(date.region)*3/4]), 1/4*max(R, R.tilde.2.4), legend=c(expression(R(t)), expression(tilde(R)(t))),
        col=c( 1,2), bg="transparent", bty = "n", 
-       lwd = 3, cex=1.5, pt.cex = 1, seg.len=1.5, y.intersp=1, x.intersp=1)
-# dev.off()
+       lwd = 3, cex=2, pt.cex = 2, seg.len=1.5, y.intersp=1, x.intersp=1)
+dev.off()
 
 
 
@@ -1349,10 +1818,9 @@ MRPE_2.4_R
 MRPE_3_I
 MRPE_3_R
 
-
+print(state.res, include.rownames = FALSE)
 
 library("xtable")
-# statesnames <- c("new york", "washington", "florida", "california", "texas")
 statesnames <- c("new york", "oregon", "florida", "california", "texas")
 MPE_res_I<- c()
 MPE_res_R <- c()
@@ -1377,5 +1845,137 @@ print(table.MPE_I_res,include.rownames = FALSE, include.colnames = FALSE)
 MPE_res_R <- cbind(c("Model 1", "Model 2.1", "Model 2.2", "Model 2.3", "Model 2.4", "Model 3"), MPE_res_R)
 table.MPE_R_res <- xtable(MPE_res_R, hline.after = c(1,2))
 print(table.MPE_R_res,include.rownames = FALSE, include.colnames = FALSE)
+
+
+
+library("xtable")
+statesnames <- c("new york", "oregon", "florida", "california", "texas")
+for(i in 1:length(statesnames)){
+  filename <- paste0(statesnames[i],"_domain.RData")
+  load(filename)
+  print(state.name)
+  print(T-1)
+  print(b_t)
+  print(cp.date)
+  print(a.final)
+  print(state.res, include.rownames = FALSE)
+  if(state.name %in% c("Florida", "Texas")){
+    print("True infected:")
+    print(I.true[1+7]); print(I.true[1+7*2]); 
+    print("estimated infected if not reopen:")
+    print(I.predict.obs[1+7]); print(I.predict.obs[1+7*2]); 
+    print(I.true[1+7]/I.predict.obs[1+7]-1); print(I.true[1+7*2]/I.predict.obs[1+7*2]-1);
+    
+    
+  }
+}
+
+
+rm(list=ls(all=TRUE))
+gc()
+a.res <- c()
+library("xtable")
+library(stringr) 
+statesnames <- c("new york", "oregon", "florida", "california", "texas")
+for(i in 1:length(statesnames)){
+  filename <- paste0(statesnames[i],"_domain.RData")
+  load(filename)
+  print(state.name)
+  print(a.final)
+  a.res <- c(a.res, a.final)
+}
+a.res
+cols <- brewer.pal(length(a.res), "Set1")
+
+# filename <- paste0("underreport_states.pdf")
+# pdf(filename, width=11, height=8.5)
+# par(mar = c(4.5, 6, 2, 1.5), mgp=c(3.5, 1.2, 0))
+# linetype <- c(1, 2, 4, 5, 6)
+# cols <- brewer.pal(5, "Set1")
+# rate.full = 1- (((1:T.full)+ a.res[1]*T.full)/((1 + a.res[1] )*T.full))^2
+# plot( date.region, rate.full[1:T],  type = 'l', col = cols[1], lty = linetype[1], lwd = 3,
+#       ylab = 'Underreporting rate', xlab = 'Date', cex.lab = 3, cex.axis = 3, ylim = c(0, 1))
+# for(i in 2:length(a.res)){
+#   rate.full = 1- (((1:T.full)+ a.res[i]*T.full)/((1 + a.res[i] )*T.full))^2
+#   lines( date.region, rate.full[1:T], col = cols[i], lty = linetype[i], type = "l", lwd = 3 )
+# }
+# legend(as.Date(date.region[length(date.region)*3/4]), 1, 
+#        legend = str_to_title(statesnames) ,
+#        col = cols, bty = "n", lwd = 3, cex= 2, pt.cex = 2, bg = "transparent",
+#        seg.len=1.5, y.intersp=1 , x.intersp=1, lty =linetype)
+# dev.off()
+
+
+
+
+#https://raw.githubusercontent.com/covid19-dashboard-us/cdcar/master/data/Daily_TotalTest_state_2020-12-22_updated.tsv
+max_lim <- "2020-05-30"
+filename <- paste0("underreport_testing_states.pdf")
+pdf(filename, width=11, height=8.5)
+par(mar = c(4.5, 6, 2, 3.5), mgp=c(3.5, 1.2, 0))
+linetype <- c(1, 2, 4, 5, 6)
+cols <- brewer.pal(5, "Set1")
+statenames <- c("New York", "Oregon", "Florida", "California", "Texas")
+statename <- statenames[1]
+date.set <- paste0("X", gsub("-", ".", seq(min(data.states$date), as.Date(max_lim ), by = "day")))
+totaltest <- read.table(file = 'Daily_TotalTest_state_2020-12-22_updated.tsv', sep = '\t', header = TRUE)
+State <- totaltest$State
+totaltest <- totaltest[, colnames(totaltest) %in% date.set]
+totaltest <- rev(totaltest)
+totaltest$State <- State 
+totaltest
+n.state <- unique(states.population[ 
+  (states.population$CTYNAME  == statename) & 
+    states.population$STNAME== statename , "POPESTIMATE2019"])
+plot(seq(min(data.states$date), as.Date(max_lim ), by = "day"), t(totaltest[totaltest$State ==gsub(" ", "", statename), -ncol(totaltest) ])/n.state*10^6,
+     type = 'l', col = cols[1], lty = linetype[1], lwd = 3,
+     xlab = "Date", ylab = "Daily tests per one million people", cex.lab = 3, cex.axis = 3)
+
+for( i in 2:length(statenames)){
+  statename <- statenames[i]
+  date.set <- paste0("X", gsub("-", ".", seq(min(data.states$date), as.Date(max_lim ), by = "day")))
+  totaltest <- read.table(file = 'Daily_TotalTest_state_2020-12-22_updated.tsv', sep = '\t', header = TRUE)
+  State <- totaltest$State
+  totaltest <- totaltest[, colnames(totaltest) %in% date.set]
+  totaltest <- rev(totaltest)
+  totaltest$State <- State 
+  print(statename)
+  n.state <- unique(states.population[ 
+    (states.population$CTYNAME  == statename) & 
+      states.population$STNAME== statename , "POPESTIMATE2019"])
+  print(n.state)
+  lines(seq(min(data.states$date), as.Date(max_lim ), by = "day"), t(totaltest[totaltest$State ==gsub(" ", "", statename), -ncol(totaltest) ])/n.state*10^6,
+       type = 'l', col = cols[i], lty = linetype[i], lwd = 3, 
+       cex.lab = 3, cex.axis = 3)
+  
+}
+legend("topleft", 
+       legend = statenames ,
+       col = cols, bty = "n", lwd = 3, cex= 2, pt.cex = 2, bg = "transparent",
+       seg.len=1.5, y.intersp=1 , x.intersp=1, lty =linetype)
+dev.off()
+
+
+max_lim <- "2020-05-30"
+t <- length(seq(min(data.states$date), as.Date(max_lim ), by = "day"))
+
+filename <- paste0("underreport_states.pdf")
+pdf(filename, width=11, height=8.5)
+par(mar = c(4.5, 6, 2, 1.5), mgp=c(3.5, 1.2, 0))
+linetype <- c(1, 2, 4, 5, 6)
+cols <- brewer.pal(5, "Set1")
+rate.full = 1- (((1:T.full)+ a.res[1]*T.full)/((1 + a.res[1] )*T.full))^2
+plot( seq(min(data.states$date), as.Date(max_lim ), by = "day") , rate.full[1:t],  type = 'l', col = cols[1], lty = linetype[1], lwd = 3,
+      ylab = 'Underreporting rate', xlab = 'Date', cex.lab = 3, cex.axis = 3, ylim = c(0, 1))
+for(i in 2:length(a.res)){
+  rate.full = 1- (((1:T.full)+ a.res[i]*T.full)/((1 + a.res[i] )*T.full))^2
+  lines( seq(min(data.states$date), as.Date(max_lim ), by = "day"), rate.full[1:t], col = cols[i], lty = linetype[i], type = "l", lwd = 3 )
+}
+legend("bottomleft",
+       legend = str_to_title(statesnames) ,
+       col = cols, bty = "n", lwd = 3, cex= 2, pt.cex = 2, bg = "transparent",
+       seg.len=1.5, y.intersp=1 , x.intersp=1, lty =linetype)
+dev.off()
+
 
 

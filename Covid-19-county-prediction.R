@@ -24,16 +24,23 @@ sourceCpp("functions_BFL.cpp")
 ## data extracted from New York Times county-level data obtained from following Github repository
 # https://github.com/nytimes/covid-19-data
 # load nyt case data
-data.counties <- read.csv("counties-08-18.csv", header = TRUE)
+# data.counties <- as.data.frame(data.table::fread("https://raw.githubusercontent.com/nytimes/covid-19-data/master/us-counties.csv"))
+# use the data after March
+# data.counties<- data.counties[as.Date(data.counties$date) >= as.Date('2020-03-01'),]
+# data.counties <- data.counties[as.Date(data.counties$date) <= as.Date('2020-08-18'),]
+data.counties <- read.csv("counties-12-23.csv", header = TRUE)
+data.counties <- data.counties[as.Date(data.counties$date) <= as.Date('2020-12-13'),]
 data.counties$date <-  as.Date(data.counties$date)
 
 
 # population data extracted from NATIONAL BUREAU OF ECONOMIC RESEARCH
+# counties.population <- as.data.frame(data.table::fread("https://www2.census.gov/programs-surveys/popest/datasets/2010-2019/counties/totals/co-est2019-alldata.csv"))
 counties.population <- read.csv("co-est2019-alldata.csv", header = TRUE)
 counties.population <- counties.population[, c("STNAME", "CTYNAME", "POPESTIMATE2019")]
-
 # distance data extracted from US Census Bureau 
+# counties.distance.100 <- as.data.frame(data.table::fread("http://data.nber.org/distance/2010/sf1/county/sf12010countydistance100miles.csv"))
 counties.distance.100<-read.csv("sf12010countydistance100miles.csv", header = TRUE)
+
 
 #########Change the county name, state name, lockdown date and reopen date below!!!!!!
 state.name <- "New York"
@@ -222,13 +229,23 @@ deaths.all<- multi_full[,seq(3,ncol(multi_full),2)]
 T <- nrow(cases.all);
 #R: the number of people who have recovered
 #using the nationwide recovered and death number to predict the recovered number
-R.all <- floor((1+(5.5))*deaths.all);
+R.all <- floor((1+(10))*deaths.all);
+if( type == "city"){
+  if( city.name == "New York City"){
+    R.all <- floor((1+(5.5))*deaths.all);
+    
+  }
+}
 #I: the number of people infected at time t
 I.all <- cases.all - R.all;
 
 #S: the number of susceptible people
 n.all.matrix <- matrix(rep(n.all,T), ncol = n.domains, byrow = TRUE)
-S.all <- n.all.matrix - I.all - R.all;
+# S.all <- n.all.matrix - I.all - R.all;
+# suppose 0.1 recovered people can became infected again later.
+immune.rate <- 0.9
+S.all <- n.all.matrix - I.all - R.all*immune.rate;
+
 
 #the fraction of S, I and R
 S.rate.all <- sapply(1:n.domains, function(jjj) S.all[,jjj]/n.all[jjj])
@@ -236,8 +253,226 @@ I.rate.all <- sapply(1:n.domains, function(jjj) I.all[,jjj]/n.all[jjj])
 R.rate.all <- sapply(1:n.domains, function(jjj) R.all[,jjj]/n.all[jjj])
 
 
-I <-I.all[, 1]
-R <-R.all[, 1]
+I.rate.all.obs <- I.rate.all
+R.rate.all.obs <- R.rate.all
+
+
+I.obs <- I.all[, 1]
+R.obs <- R.all[, 1]
+
+
+
+#### grid search find a  quadratic function 
+#################################### 
+# a.vals <- c(0.1, 0.2, 0.4, 0.5, 1 )
+# a.vals <- c(0.2, 0.5, 1, 2, 5, 50)
+# a.vals <- c(0.2, 0.25, 0.3)
+a.vals <-   c(0.1, 0.15, 0.2, 0.25, 0.3)
+MRPE_1_new.full <- c()
+temp.full <- vector("list", length(a.vals));
+est.1.full <- vector("list", length(a.vals));
+set.seed(123456)
+for(idx in 1:length(a.vals)){
+  a.val <- a.vals[idx]
+  I <-  I.obs
+  R <-  R.obs
+  for(t in 2:T){
+    rate <- 1/(((t)+a.val*T)/((1 + a.val )*T))^2
+    print(1/rate)
+    I[t] <- (I.obs[t] - I.obs[t-1])*rate + I[t-1]
+  }
+  
+  plot( 1- (((1:T)+a.val*T)/((1 + a.val )*T))^2 )
+  
+  
+  
+  R.rate.all[, 1]<- R/n.all[1]
+  I.rate.all[, 1]<- I/n.all[1]
+  S.rate.all[, 1]<- (n.all.matrix[, 1] - I - R*immune.rate)/n.all[1];
+  ############################################
+  ######## construct varibles ################
+  ############################################
+  y.list <- vector("list",T-1);
+  x.list <- vector("list",T-1);
+  
+  for(i in 2:T){
+    y.list[[i-1]] <- matrix(c(R.rate.all[i,1]-R.rate.all[i-1, 1], I.rate.all[i, 1]-I.rate.all[i-1,1]), 2, 1);
+    x.temp <- matrix(0,2,2);
+    x.temp[1,2] <- I.rate.all[i-1, 1];
+    x.temp[2,1] <- S.rate.all[i-1, 1]*I.rate.all[i-1, 1];
+    x.temp[2,2] <- -I.rate.all[i-1, 1];
+    x.list[[i-1]] <- x.temp;
+  }
+  
+  Y <- y.list[[1]];
+  for(i in 2:(T-1)){
+    Y <- rbind(Y, y.list[[i]])
+  }
+  
+  X <- x.list[[1]];
+  for(i in 2:(T-1)){
+    X <- rbind(X, x.list[[i]])
+  }
+  
+  beta_t <- sapply(1:length(y.list), function(jjj)  (y.list[[jjj]][1]+y.list[[jjj]][2])/I.rate.all[jjj,1])
+  gamma_t <- sapply(1:length(y.list), function(jjj)  y.list[[jjj]][1]/I.rate.all[jjj,1])
+  
+  cols <- c("dark orange", "purple", "darkolivegreen4", "blue" )
+  plot(multi_full$date[-length(multi_full$date)], beta_t,type='l',col=cols[1],lty=1,lwd = 3,
+       ylab ='Rate', xlab= 'Date',cex.lab=2 , cex.axis=2)
+  lines(as.Date(multi_full$date[-length(multi_full$date)]),gamma_t,col=cols[3],lty=1,type="l",lwd = 3)
+  
+  
+  Y.full <- Y
+  X.full <- X
+  
+  
+  Y.test <- as.matrix(Y.full[(nrow(Y) - (n.test - 1)*2 + 1):nrow(Y), ])
+  X.test <- X.full[(nrow(X) - (n.test - 1)*2 + 1):nrow(X), ]
+  Y.train <- as.matrix(Y.full[1 : (nrow(Y) - (n.test - 1)*2 ), ])
+  X.train <- X.full[1 : (nrow(X) - (n.test - 1)*2 ), ]
+  
+  # I.test <- I[(T - n.test + 1):T]
+  # R.test <- R[(T - n.test + 1):T]
+  
+  # Delta.R <- rep(0, n.test - 1)
+  # for(i in 2:n.test ){
+  #   Delta.R[i - 1] <- Y.test[(i - 2)*2 + 1]
+  # }
+  # Delta.R <- Delta.R*n.all[1]
+  
+  
+  # Delta.I <- rep(0, n.test - 1)
+  # for(i in 2:n.test){
+  #   rate <- (((T - n.test + i)+a.val*T)/((1 + a.val )*T))^2
+  #   Delta.I[i - 1] <- Y.test[(i - 2)*2 + 2]*rate
+  # }
+  # Delta.I <- Delta.I*n.all[1]
+  
+  
+  #################################################
+  ######### Model 1  ##############################
+  #################################################
+  #scaling but not centering data
+  Y_std.train <- sd(Y.train)
+  Y_s.train <- scale(Y.train, center = FALSE, scale = apply(Y.train, 2, sd, na.rm = TRUE))
+  
+  X_std.train <- apply(X.train, MARGIN=2, FUN=sd)
+  X_s.train <- scale(X.train, center = FALSE, scale = apply(X.train, 2, sd, na.rm = TRUE))
+  
+  
+  p.x <- ncol(X_s.train)
+  p.y <- ncol(Y_s.train)
+  n <- nrow(X_s.train)
+  tol <- 10^(-4); # tolerance 
+  max.iteration <- 200; # max number of iteration for the LASSO solution
+  method <- c("MLR")
+  #p is the number of variables for each day (I_t and R_t) 
+  p <- 2
+  #b_t is the block size among the time points (1 : (length(date) - 1))
+  
+  lambda.1 <- c(1, 0.5, 0.1, 0.05, 0.01, 0.005, 0.001)
+  if("Miami-Dade" %in% county.name){
+    gamma.val = 5
+    b_t <- 7
+    HBIC = TRUE
+  }else if("South Carolina" %in% state.name){
+    # b_t <- 7
+    b_t <- 5
+    gamma.val = 5
+    # gamma.val = 1
+    HBIC = TRUE
+    
+  }else if("Louisiana" %in% state.name){
+    b_t <- 10
+    gamma.val = 1
+    HBIC = TRUE
+    
+  }else{
+    b_t <- 7
+    HBIC = FALSE
+    gamma.val = NULL
+  }
+  
+  
+  b_n <- p * b_t
+  temp.1 <- tbfl(method, Y_s.train, X_s.train, lambda.1.cv = lambda.1, lambda.2.cv = 0,
+                 max.iteration = max.iteration, tol = tol, block.size = b_n, HBIC = HBIC, gamma.val = gamma.val)
+  
+  temp.full[[idx]] <- temp.1
+  
+  beta.est <- temp.1$beta.est
+  beta.est <- lapply(beta.est, function (x) x*Y_std.train/X_std.train)
+  
+  date.region <- multi_full$date
+  date.region[floor( ( temp.1$cp.final -1) / p) + 1]
+  
+  
+  #############################################
+  ##### refit model
+  #############################################
+  cp <- c(1, temp.1$cp.final, n+1)
+  m <- length(cp) - 1
+  X.new.new <- matrix(0, nrow = n, ncol = m*p.x)
+  for(i in 1:m){
+    X.new.new[cp[i]: (cp[i+1]-1), (p.x*(i-1)+1) : (p.x*i) ] <- X.train[cp[i]: (cp[i+1]-1), ]
+  }
+  
+  est.1 <- lm(Y.train ~ X.new.new  - 1)
+  summary(est.1)
+  
+  # cp <- temp.1$cp.final
+  # m <- length(cp)
+  # Y.temp.1 <- Y.train[cp[m]: (n), ]
+  # X.temp.1 <- X.train[cp[m]: (n), ]
+  # est.temp.1 <- lm(Y.temp.1 ~ X.temp.1  - 1)
+  # est.temp.1
+  # Y.hat.1.new <- X.test%*%c(est.temp.1$coefficients) 
+  Y.hat.1.train <- est.1$fitted.values
+  
+  
+  # MRPE_1_new  <- mean(  abs ( (c(Y.hat.1.new[seq(2, 2*(n.test-1), 2)]) - c(Y.test[seq(2, 2*(n.test-1), 2)])  )  /
+  #                               c(Y.test[seq(2, 2*(n.test-1), 2)])  )[c(Y.test[seq(2, 2*(n.test-1), 2)]) > 0]  )
+  
+  MRPE_1_new <- mean(  abs( (Y.hat.1.train[seq(2, n , 2)] - Y.train[seq(2, n, 2)] )  /c(Y.train[seq(2,n,2)])  )[c(Y.train[seq(2,n,2)]) > 0]  )
+  
+  MRPE_1_new.full <- c(MRPE_1_new.full, MRPE_1_new)
+  
+}
+idx <- which.min(MRPE_1_new.full)
+cp.final <- temp.full[[idx]]$cp.final 
+cp.date <- c(1:n)[floor( (cp.final-1) / p) + 1]
+a.final <- a.vals[idx]
+lm.res <- est.1.full[[idx]]
+MRPE_1_new.full
+date.region[cp.date]
+state.name
+county.name
+a.final
+a.vals
+
+
+
+
+######################
+set.seed(123456)
+a.val <- a.final
+I <-  I.obs
+R <-  R.obs
+for(t in 2:T){
+  rate <- 1/(((t)+a.val*T)/((1 + a.val )*T))^2
+  print(1/rate)
+  I[t] <- (I.obs[t] - I.obs[t-1])*rate + I[t-1]
+  
+}
+
+plot( 1- (((1:T)+a.val*T)/((1 + a.val )*T))^2 )
+
+
+
+R.rate.all[, 1]<- R/n.all[1]
+I.rate.all[, 1]<- I/n.all[1]
+S.rate.all[, 1]<- (n.all.matrix[, 1] - I - R*immune.rate)/n.all[1];
 
 ############################################
 ######## construct varibles ################
@@ -267,6 +502,12 @@ for(i in 2:(T-1)){
 beta_t <- sapply(1:length(y.list), function(jjj)  (y.list[[jjj]][1]+y.list[[jjj]][2])/I.rate.all[jjj,1])
 gamma_t <- sapply(1:length(y.list), function(jjj)  y.list[[jjj]][1]/I.rate.all[jjj,1])
 
+cols <- c("dark orange", "purple", "darkolivegreen4", "blue" )
+plot(multi_full$date[-length(multi_full$date)], beta_t,type='l',col=cols[1],lty=1,lwd = 3,
+     ylab ='Rate', xlab= 'Date',cex.lab=2 , cex.axis=2)
+lines(as.Date(multi_full$date[-length(multi_full$date)]),gamma_t,col=cols[3],lty=1,type="l",lwd = 3)
+
+
 Y.full <- Y
 X.full <- X
 
@@ -275,8 +516,8 @@ X.test <- X.full[(nrow(X) - (n.test - 1)*2 + 1):nrow(X), ]
 Y.train <- as.matrix(Y.full[1 : (nrow(Y) - (n.test - 1)*2 ), ])
 X.train <- X.full[1 : (nrow(X) - (n.test - 1)*2 ), ]
 
-I.test <- I[(T - n.test + 1):T]
-R.test <- R[(T - n.test + 1):T]
+I.test <- I.obs[(T - n.test + 1):T]
+R.test <- R.obs[(T - n.test + 1):T]
 
 
 Delta.R <- rep(0, n.test - 1)
@@ -288,7 +529,8 @@ Delta.R <- Delta.R*n.all[1]
 
 Delta.I <- rep(0, n.test - 1)
 for(i in 2:n.test){
-  Delta.I[i - 1] <- Y.test[(i - 2)*2 + 2]
+  rate <- (((T - n.test + i)+a.val*T)/((1 + a.val )*T))^2
+  Delta.I[i - 1] <- Y.test[(i - 2)*2 + 2]*rate
 }
 Delta.I <- Delta.I*n.all[1]
 
@@ -317,10 +559,10 @@ b_t <- 7
 lambda.1 <- c(1, 0.5, 0.1, 0.05, 0.01, 0.005, 0.001)
 if("Miami-Dade" %in% county.name){
   gamma.val = 5
-  b_t <- 5
+  b_t <- 7
   HBIC = TRUE
 }else if("South Carolina" %in% state.name){
-  b_t <- 7
+  b_t <- 5
   gamma.val = 5
   HBIC = TRUE
   
@@ -344,6 +586,9 @@ beta.est <- lapply(beta.est, function (x) x*Y_std.train/X_std.train)
 
 date.region <- multi_full$date
 date.region[floor( ( temp.1$cp.final -1) / p) + 1]
+
+
+
 
 #############################################
 ##### refit model
@@ -374,11 +619,20 @@ for(i in 2:n.test ){
 }
 Delta.R.hat.1 <- Delta.R.hat.1*n.all[1]
 
+
 Delta.I.hat.1 <- rep(0, n.test - 1)
 for(i in 2:n.test){
-  Delta.I.hat.1[i - 1] <- Y.hat.1.new[(i - 2)*2 + 2]
+  rate <- (((T - n.test + i)+a.val*T)/((1 + a.val )*T))^2
+  Delta.I.hat.1[i - 1] <- Y.hat.1.new[(i - 2)*2 + 2]*rate
 }
 Delta.I.hat.1 <- Delta.I.hat.1*n.all[1]
+
+
+# Delta.I.hat.1 <- rep(0, n.test - 1)
+# for(i in 2:n.test){
+#   Delta.I.hat.1[i - 1] <- Y.hat.1.new[(i - 2)*2 + 2]
+# }
+# Delta.I.hat.1 <- Delta.I.hat.1*n.all[1]
 
 R.hat.1.new <- rep(0, n.test)
 R.hat.1.new[1] <- R.rate.all[T - n.test + 1, 1]
@@ -387,15 +641,28 @@ for(i in 2:n.test){
 }
 R.hat.1.new <- R.hat.1.new*n.all[1]
 
+
 I.hat.1.new <- rep(0, n.test)
-I.hat.1.new[1] <- I.rate.all[T - n.test + 1, 1]
+I.hat.1.new[1] <- I.rate.all.obs[T - n.test + 1, 1]
 for(i in 2:n.test){
-  I.hat.1.new[i] <-  I.rate.all[T - n.test + (i-1), 1] + Y.hat.1.new[(i-2)*2+2]
+  rate <- (((T - n.test + i)+a.val*T)/((1 + a.val )*T))^2
+  print(rate)
+  I.hat.1.new[i] <-  I.rate.all.obs[T - n.test + (i-1), 1] + Y.hat.1.new[(i-2)*2+2]*rate
 }
 I.hat.1.new <- I.hat.1.new*n.all[1]
 
-I.test <- I[(T - n.test + 1):T]
-R.test <- R[(T - n.test + 1):T]
+I.test <- I.obs[(T - n.test + 1):T]
+R.test <- R.obs[(T - n.test + 1):T]
+
+# I.hat.1.new <- rep(0, n.test)
+# I.hat.1.new[1] <- I.rate.all[T - n.test + 1, 1]
+# for(i in 2:n.test){
+#   I.hat.1.new[i] <-  I.rate.all[T - n.test + (i-1), 1] + Y.hat.1.new[(i-2)*2+2]
+# }
+# I.hat.1.new <- I.hat.1.new*n.all[1]
+
+# I.test <- I[(T - n.test + 1):T]
+# R.test <- R[(T - n.test + 1):T]
 
 
 MRPE_1_new_I <- mean(  abs ( (     c(I.hat.1.new[-1]) - c(I.test[-1])     )  /c(I.test[-1])  )[c(I.test[-1]) > 0]  )
@@ -411,6 +678,15 @@ print(round(MRPE_1_new_R, 4))
 ###### Model 2.1 equal weight 
 ###### spatial components are chosen by distance
 #################################################
+a.val <- a.final
+I.rate.all <- I.rate.all.obs
+R.rate.all <- R.rate.all.obs
+for(t in 2:T){
+  rate <- 1/(((t)+a.val*T)/((1 + a.val )*T))^2
+  print(1/rate)
+  I.rate.all[t, ] <- (I.rate.all.obs[t, ] - I.rate.all.obs[t-1, ])*rate + I.rate.all[t-1, ]
+}
+
 distance_1 <- rep(1, n.domains)
 distance_1[1] <- 0
 
@@ -463,15 +739,25 @@ for(i in 2:n.test){
 }
 R.hat.2.1.new <- R.hat.2.1.new*n.all[1]
 
+# I.hat.2.1.new <- rep(0, n.test)
+# I.hat.2.1.new[1] <- I.rate.all[T - n.test + 1, 1]
+# for(i in 2:n.test){
+#   I.hat.2.1.new[i] <-  I.rate.all[T - n.test + (i-1), 1] + Y.hat.2.1.new[(i-2)*2+2]
+# }
+# I.hat.2.1.new <- I.hat.2.1.new*n.all[1]
+# 
+# I.test <- I[(T - n.test + 1):T]
+# R.test <- R[(T - n.test + 1):T]
+
+
 I.hat.2.1.new <- rep(0, n.test)
-I.hat.2.1.new[1] <- I.rate.all[T - n.test + 1, 1]
+I.hat.2.1.new[1] <- I.rate.all.obs[T - n.test + 1, 1]
 for(i in 2:n.test){
-  I.hat.2.1.new[i] <-  I.rate.all[T - n.test + (i-1), 1] + Y.hat.2.1.new[(i-2)*2+2]
+  rate <- (((T - n.test + i)+a.val*T)/((1 + a.val )*T))^2
+  print(rate)
+  I.hat.2.1.new[i] <-  I.rate.all.obs[T - n.test + (i-1), 1] + Y.hat.2.1.new[(i-2)*2+2]*rate
 }
 I.hat.2.1.new <- I.hat.2.1.new*n.all[1]
-
-I.test <- I[(T - n.test + 1):T]
-R.test <- R[(T - n.test + 1):T]
 
 
 MRPE_2.1_new_I <- mean(  abs ( (     c(I.hat.2.1.new[-1]) - c(I.test[-1])     )  /c(I.test[-1])  )[c(I.test[-1]) > 0]  )
@@ -545,15 +831,26 @@ for(i in 2:n.test){
 }
 R.hat.2.2.new <- R.hat.2.2.new*n.all[1]
 
+# I.hat.2.2.new <- rep(0, n.test)
+# I.hat.2.2.new[1] <- I.rate.all[T - n.test + 1, 1]
+# for(i in 2:n.test){
+#   I.hat.2.2.new[i] <-  I.rate.all[T - n.test + (i-1), 1] + Y.hat.2.2.new[(i-2)*2+2]
+# }
+# I.hat.2.2.new <- I.hat.2.2.new*n.all[1]
+# 
+# I.test <- I[(T - n.test + 1):T]
+# R.test <- R[(T - n.test + 1):T]
+
+
 I.hat.2.2.new <- rep(0, n.test)
-I.hat.2.2.new[1] <- I.rate.all[T - n.test + 1, 1]
+I.hat.2.2.new[1] <- I.rate.all.obs[T - n.test + 1, 1]
 for(i in 2:n.test){
-  I.hat.2.2.new[i] <-  I.rate.all[T - n.test + (i-1), 1] + Y.hat.2.2.new[(i-2)*2+2]
+  rate <- (((T - n.test + i)+a.val*T)/((1 + a.val )*T))^2
+  print(rate)
+  I.hat.2.2.new[i] <-  I.rate.all.obs[T - n.test + (i-1), 1] + Y.hat.2.2.new[(i-2)*2+2]*rate
 }
 I.hat.2.2.new <- I.hat.2.2.new*n.all[1]
 
-I.test <- I[(T - n.test + 1):T]
-R.test <- R[(T - n.test + 1):T]
 
 
 MRPE_2.2_new_I <- mean(  abs ( (     c(I.hat.2.2.new[-1]) - c(I.test[-1])     )  /c(I.test[-1])  )[c(I.test[-1]) > 0]  )
@@ -674,18 +971,40 @@ deaths.all<- multi_full[,seq(3,ncol(multi_full),2)]
 T <- nrow(cases.all);
 #R: the number of people who have recovered
 #using the nationwide recovered and death number to predict the recovered number
-R.all <- floor((1+(5.5))*deaths.all);
+R.all <- floor((1+(10))*deaths.all);
+if( type == "city"){
+  if( city.name == "New York City"){
+    R.all <- floor((1+(5.5))*deaths.all);
+    
+  }
+}
 #I: the number of people infected at time t
 I.all <- cases.all - R.all;
 
 #S: the number of susceptible people
 n.all.matrix <- matrix(rep(n.all,T), ncol = n.domains, byrow = TRUE)
-S.all <- n.all.matrix - I.all - R.all;
+# S.all <- n.all.matrix - I.all - R.all;
+# suppose 0.1 recovered people can became infected again later.
+immune.rate <- 0.9
+S.all <- n.all.matrix - I.all - R.all*immune.rate;
+
 
 #the fraction of S, I and R
-S.rate.all <- sapply(1:n.domains, function(jjj) S.all[,jjj]/n.all[jjj])
+# S.rate.all <- sapply(1:n.domains, function(jjj) S.all[,jjj]/n.all[jjj])
 I.rate.all <- sapply(1:n.domains, function(jjj) I.all[,jjj]/n.all[jjj])
 R.rate.all <- sapply(1:n.domains, function(jjj) R.all[,jjj]/n.all[jjj])
+
+
+I.rate.all.obs <- I.rate.all
+R.rate.all.obs <- R.rate.all
+
+a.val <- a.final
+for(t in 2:T){
+  rate <- 1/(((t)+a.val*T)/((1 + a.val )*T))^2
+  print(1/rate)
+  I.rate.all[t, ] <- (I.rate.all.obs[t, ] - I.rate.all.obs[t-1, ])*rate + I.rate.all[t-1, ]
+}
+
 
 
 n.regions <- ncol(I.rate.all)
@@ -715,19 +1034,19 @@ county.names
 
 
 n.all.full <- n.all
-S.rate.all.full <- S.rate.all
+# S.rate.all.full <- S.rate.all
 I.rate.all.full <- I.rate.all
 R.rate.all.full <- R.rate.all
 
 n.domains <- length(county.names)
 n.all <- n.all[county.index]
-S.rate.all <- S.rate.all[, county.index]
+# S.rate.all <- S.rate.all[, county.index]
 I.rate.all <- I.rate.all[, county.index]
 R.rate.all <- R.rate.all[, county.index]
 
 date.region <- multi_full$date
-I <- I.all[, 1]
-R <- R.all[, 1]
+# I <- I.all[, 1]
+# R <- R.all[, 1]
 
 distance_3 <- rep(0, n.domains)
 #Power Distance Weights.
@@ -789,14 +1108,25 @@ for(i in 2:n.test){
 R.hat.2.3.new <- R.hat.2.3.new*n.all[1]
 
 I.hat.2.3.new <- rep(0, n.test)
-I.hat.2.3.new[1] <- I.rate.all[T - n.test + 1, 1]
+I.hat.2.3.new[1] <- I.rate.all.obs[T - n.test + 1, 1]
 for(i in 2:n.test){
-  I.hat.2.3.new[i] <-  I.rate.all[T - n.test + (i-1), 1] + Y.hat.2.3.new[(i-2)*2+2]
+  rate <- (((T - n.test + i)+a.val*T)/((1 + a.val )*T))^2
+  print(rate)
+  I.hat.2.3.new[i] <-  I.rate.all.obs[T - n.test + (i-1), 1] + Y.hat.2.3.new[(i-2)*2+2]*rate
 }
 I.hat.2.3.new <- I.hat.2.3.new*n.all[1]
 
-I.test <- I[(T - n.test + 1):T]
-R.test <- R[(T - n.test + 1):T]
+
+
+# I.hat.2.3.new <- rep(0, n.test)
+# I.hat.2.3.new[1] <- I.rate.all[T - n.test + 1, 1]
+# for(i in 2:n.test){
+#   I.hat.2.3.new[i] <-  I.rate.all[T - n.test + (i-1), 1] + Y.hat.2.3.new[(i-2)*2+2]
+# }
+# I.hat.2.3.new <- I.hat.2.3.new*n.all[1]
+# 
+# I.test <- I[(T - n.test + 1):T]
+# R.test <- R[(T - n.test + 1):T]
 
 
 MRPE_2.3_new_I <- mean(  abs ( (     c(I.hat.2.3.new[-1]) - c(I.test[-1])     )  /c(I.test[-1])  )[c(I.test[-1]) > 0]  )
@@ -813,9 +1143,16 @@ for(i in 2:n.test ){
 Delta.R.hat.2 <- Delta.R.hat.2*n.all[1]
 
 
+# Delta.I.hat.2 <- rep(0, n.test - 1)
+# for(i in 2:n.test){
+#   Delta.I.hat.2[i - 1] <- Y.hat.2.3.new[(i - 2)*2 + 2]
+# }
+# Delta.I.hat.2 <- Delta.I.hat.2*n.all[1]
+
 Delta.I.hat.2 <- rep(0, n.test - 1)
 for(i in 2:n.test){
-  Delta.I.hat.2[i - 1] <- Y.hat.2.3.new[(i - 2)*2 + 2]
+  rate <- (((T - n.test + i)+a.val*T)/((1 + a.val )*T))^2
+  Delta.I.hat.2[i - 1] <- Y.hat.2.3.new[(i - 2)*2 + 2]*rate
 }
 Delta.I.hat.2 <- Delta.I.hat.2*n.all[1]
 
@@ -945,15 +1282,26 @@ for(i in 2:n.test){
 }
 R.hat.3.new <- R.hat.3.new*n.all[1]
 
+# I.hat.3.new <- rep(0, n.test)
+# I.hat.3.new[1] <- I.rate.all[T - n.test + 1, 1]
+# for(i in 2:n.test){
+#   I.hat.3.new[i] <-  I.rate.all[T - n.test + (i-1), 1] + Y.hat.3.new[(i-2)*2+2]
+# }
+# I.hat.3.new <- I.hat.3.new*n.all[1]
+# 
+# I.test <- I[(T - n.test + 1):T]
+# R.test <- R[(T - n.test + 1):T]
+
+
 I.hat.3.new <- rep(0, n.test)
-I.hat.3.new[1] <- I.rate.all[T - n.test + 1, 1]
+I.hat.3.new[1] <- I.rate.all.obs[T - n.test + 1, 1]
 for(i in 2:n.test){
-  I.hat.3.new[i] <-  I.rate.all[T - n.test + (i-1), 1] + Y.hat.3.new[(i-2)*2+2]
+  rate <- (((T - n.test + i)+a.val*T)/((1 + a.val )*T))^2
+  print(rate)
+  I.hat.3.new[i] <-  I.rate.all.obs[T - n.test + (i-1), 1] + Y.hat.3.new[(i-2)*2+2]*rate
 }
 I.hat.3.new <- I.hat.3.new*n.all[1]
 
-I.test <- I[(T - n.test + 1):T]
-R.test <- R[(T - n.test + 1):T]
 
 MRPE_3_new_I <- mean(  abs ( (     c(I.hat.3.new[-1]) - c(I.test[-1])     )  /c(I.test[-1])  )[c(I.test[-1]) > 0]  )
 print(round(MRPE_3_new_I, 4))
@@ -970,38 +1318,45 @@ for(i in 2:n.test ){
 Delta.R.hat.3 <- Delta.R.hat.3*n.all[1]
 
 
+# Delta.I.hat.3 <- rep(0, n.test - 1)
+# for(i in 2:n.test){
+#   Delta.I.hat.3[i - 1] <- Y.hat.3.new[(i - 2)*2 + 2]
+# }
+# Delta.I.hat.3 <- Delta.I.hat.3*n.all[1]
+
+
 Delta.I.hat.3 <- rep(0, n.test - 1)
 for(i in 2:n.test){
-  Delta.I.hat.3[i - 1] <- Y.hat.3.new[(i - 2)*2 + 2]
+  rate <- (((T - n.test + i)+a.val*T)/((1 + a.val )*T))^2
+  Delta.I.hat.3[i - 1] <- Y.hat.3.new[(i - 2)*2 + 2]*rate
 }
 Delta.I.hat.3 <- Delta.I.hat.3*n.all[1]
 
 
-
-# filename <- paste0("Delta_I_PI_", county.lowernames[1], "_all.pdf")
-# pdf(filename, width = 11, height = 8.5)
-par(mar = c(4, 5, 1.5, 1))
+filename <- paste0("Delta_I_PI_", county.lowernames[1], "_all.pdf")
+pdf(filename, width = 11, height = 8.5)
+par(mar = c(4.5, 6.2, 2, 2.2), mgp=c(3.5, 1.2, 0))
 ylim_min <- min(0, Delta.I,  Delta.I.hat.1, Delta.I.hat.2, Delta.I.hat.3)
 ylim_max <- max(0, Delta.I,  Delta.I.hat.1, Delta.I.hat.2, Delta.I.hat.3)
 plot(multi_full$date[(T-n.test+1):(T-1)], Delta.I , col = '1', ylim =c(ylim_min, ylim_max), lty = 1, type = "l", lwd = 3,
-     ylab = expression(paste(Delta, "I(t)")), xlab = 'Date', cex.lab = 2, cex.axis = 2)
+     ylab = expression(paste(Delta, "I(t)")), xlab = 'Date', cex.lab = 3, cex.axis = 3)
 lines(multi_full$date[(T-n.test+1):(T-1)], Delta.I.hat.1, col = 'orange', lty = 1, type = "b", lwd = 3)
 lines(multi_full$date[(T-n.test+1):(T-1)], Delta.I.hat.2, col = 'green', lty = 1, type = "b", lwd = 3)
 lines(multi_full$date[(T-n.test+1):(T-1)], Delta.I.hat.3, col = 'blue', lty = 1, type = "b", lwd = 3)
-# dev.off()
+dev.off()
 
 
-# filename <- paste0("Delta_R_PI_", county.lowernames[1], "_all.pdf")
-# pdf(filename, width=11, height=8.5)
-par(mar = c(4., 5, 1.5, 1))
+filename <- paste0("Delta_R_PI_", county.lowernames[1], "_all.pdf")
+pdf(filename, width=11, height=8.5)
+par(mar = c(4.5, 6.2, 2, 2.2), mgp=c(3.5, 1.2, 0))
 ylim_min <- min(0, Delta.R, Delta.R.hat.1, Delta.R.hat.2, Delta.R.hat.3)
 ylim_max <- max(0, Delta.R, Delta.R.hat.1, Delta.R.hat.2, Delta.R.hat.3)
 plot(multi_full$date[(T-n.test+1):(T-1)], Delta.R, col='1', ylim = c(ylim_min, ylim_max), lty=1, type="l", lwd = 3,
-     ylab = expression(paste(Delta, "R(t)")), xlab= 'Date', cex.lab=2, cex.axis=2)
+     ylab = expression(paste(Delta, "R(t)")), xlab= 'Date', cex.lab = 3, cex.axis = 3)
 lines(multi_full$date[(T-n.test+1):(T-1)], Delta.R.hat.1, col='orange', lty=1, type= "b", lwd = 3)
 lines(multi_full$date[(T-n.test+1):(T-1)], Delta.R.hat.2, col='green', lty=1, type="b", lwd = 3)
 lines(multi_full$date[(T-n.test+1):(T-1)], Delta.R.hat.3, col='blue', lty=1, type="b", lwd = 3)
-# dev.off()
+dev.off()
 
 #######################################
 # model 2.4 use all the states #######
@@ -1062,15 +1417,25 @@ for(i in 2:n.test){
 }
 R.hat.2.4.new <- R.hat.2.4.new*n.all[1]
 
+# I.hat.2.4.new <- rep(0, n.test)
+# I.hat.2.4.new[1] <- I.rate.all[T - n.test + 1, 1]
+# for(i in 2:n.test){
+#   I.hat.2.4.new[i] <-  I.rate.all[T - n.test + (i-1), 1] + Y.hat.2.4.new[(i-2)*2+2]
+# }
+# I.hat.2.4.new <- I.hat.2.4.new*n.all[1]
+# 
+# I.test <- I[(T - n.test + 1):T]
+# R.test <- R[(T - n.test + 1):T]
+
 I.hat.2.4.new <- rep(0, n.test)
-I.hat.2.4.new[1] <- I.rate.all[T - n.test + 1, 1]
+I.hat.2.4.new[1] <- I.rate.all.obs[T - n.test + 1, 1]
 for(i in 2:n.test){
-  I.hat.2.4.new[i] <-  I.rate.all[T - n.test + (i-1), 1] + Y.hat.2.4.new[(i-2)*2+2]
+  rate <- (((T - n.test + i)+a.val*T)/((1 + a.val )*T))^2
+  print(rate)
+  I.hat.2.4.new[i] <-  I.rate.all.obs[T - n.test + (i-1), 1] + Y.hat.2.4.new[(i-2)*2+2]*rate
 }
 I.hat.2.4.new <- I.hat.2.4.new*n.all[1]
 
-I.test <- I[(T - n.test + 1):T]
-R.test <- R[(T - n.test + 1):T]
 
 
 MRPE_2.4_new_I <- mean(  abs ( (     c(I.hat.2.4.new[-1]) - c(I.test[-1])     )  /c(I.test[-1])  )[c(I.test[-1]) > 0]  )
@@ -1108,9 +1473,8 @@ MRPE_3_new_R
 
 
 library("xtable")
-countiesnames <- c("new york city", "king", "miami-dade")
+countiesnames <- c("new york city", "king", "miami-dade", "orleans", "jefferson")
 countiesnames <- c("charleston", "greenville" ,"richland", "horry") 
-countiesnames <- c( "orleans", "jefferson")
 MPE_res <- c()
 for(i in 1:length(countiesnames)){
   filename <- paste0(countiesnames[i],"_domain_prediction.RData")
@@ -1125,10 +1489,14 @@ print(table.MPE_res,include.rownames = FALSE, include.colnames = FALSE)
 
 
 
-countiesnames <- c("new york city", "king", "miami-dade")
-countiesnames <- c("charleston", "greenville" ,"richland", "horry") 
-countiesnames <- c( "orleans", "jefferson")
-
+# countiesnames <- c("new york city", "king", "miami-dade")
+# countiesnames <- c("charleston", "greenville" ,"richland", "horry") 
+# countiesnames <- c( "orleans", "jefferson")
+# countiesnames <- c("new york city", "king", "miami-dade",  "jefferson", 
+                   # "greenville", "horry") 
+# countiesnames <- c("orleans", "charleston", "richland")
+countiesnames <- c("new york city", "king", "miami-dade", "orleans", "jefferson", 
+                   "charleston", "greenville", "richland", "horry") 
 alpha_res <- c()
 for(i in 1:length(countiesnames)){
   filename <- paste0(countiesnames[i],"_domain_prediction.RData")
@@ -1156,7 +1524,13 @@ for(i in 1:length(countiesnames)){
   
 }
 alpha_res <- cbind(rep(c( "Model 2.1","Model 2.2", "Model 2.3","Model 2.4" ), length(countiesnames) ), alpha_res)
-alpha_res <- cbind(c("\\multirow{ 4}{*}{NYC}","","","","\\multirow{ 4}{*}{King}", "","","", "\\multirow{ 4}{*}{Miami-Dade}", "","","" ), 
+# alpha_res <- cbind(c("\\multirow{ 4}{*}{NYC}","","","","\\multirow{ 4}{*}{King}", "","","", "\\multirow{ 4}{*}{Miami-Dade}", "","","" ), 
+#                    alpha_res)
+alpha_res <- cbind(c("\\multirow{ 4}{*}{NYC}","","","","\\multirow{ 4}{*}{King}", "","","", "\\multirow{ 4}{*}{Miami-Dade}", "","","",
+                     "\\multirow{ 4}{*}{Orleans}","","","","\\multirow{ 4}{*}{Jefferson}", "","","", 
+                     "\\multirow{ 4}{*}{Charleston}", "","","", "\\multirow{ 4}{*}{Greenville}","","","",
+                     "\\multirow{ 4}{*}{Richland}", "","","", "\\multirow{ 4}{*}{Horry}", "","",""
+                     ), 
                    alpha_res)
 alpha_res <- rbind(c("","model", "estimate", "p-value",  "confidence interval"), alpha_res)
 table.alpha_res <- xtable(alpha_res, hline.after = c(1, 2))
@@ -1166,14 +1540,17 @@ print(table.alpha_res,include.rownames = FALSE, include.colnames = FALSE ,hline.
 
 
 library("xtable")
-countiesnames <- c("new york city", "king", "miami-dade")
-countiesnames <- c("charleston", "greenville" ,"richland", "horry") 
-countiesnames <- c( "orleans", "jefferson")
+# countiesnames <- c("new york city", "king", "miami-dade")
+# countiesnames <- c("charleston", "greenville" ,"richland", "horry") 
+# countiesnames <- c( "orleans", "jefferson")
+countiesnames <- c("new york city", "king", "miami-dade", "orleans", "jefferson", 
+                   "charleston", "greenville", "richland", "horry") 
 for(i in 1:length(countiesnames)){
   print(countiesnames[i])
   filename <- paste0(countiesnames[i],"_domain_prediction.RData")
   load(filename)
   print(temp.var$cp.final)
+  print(date.region[floor( (temp.var$cp.final-1) / p) + 1])
 }
 
 

@@ -610,6 +610,8 @@ lm.first.step.blocks <- function(data_y, data_x, lambda1, lambda2, max.iteration
         forecast.all.new[, (blocks[i.1]):(blocks[i.1+1]-1)] <- forecast.all.new[, (blocks[i.1]):(blocks[i.1+1]-1)] + beta.fixed.full %*%t(as.matrix(data_x[(blocks[i.1]):(blocks[i.1+1]-1), fixed_index]))
       }
     }
+    
+    
     if(is.null(fixed_index)){
 
       forecast.all.new[, (blocks[1]):(blocks[2]-1)] <- pred.block(t(data_x), phi.full.all.new[[1]],
@@ -620,20 +622,54 @@ lm.first.step.blocks <- function(data_y, data_x, lambda1, lambda2, max.iteration
       #   forecast.all.new[, (blocks[i.1]):(blocks[i.1+1]-1)] <- pred.block(t(data_x), phi.full.all.new[[i.1]],
       #                                                                     blocks[i.1], p.x, p.y, blocks[i.1+1] - blocks[i.1]);
       # }
-      # print(loc.block.full)
+      print("loc.block.full:")
+      print(loc.block.full)
       # print(phi.hat.full)
       for(i.1 in 2:n.new){
-        #phi.full.all.new.temp keeps adding
         phi.full.all.new.temp[[i.1]] <- matrix(phi.full.all.new.temp[[i.1-1]] + phi.hat.full[, ((i.1-1)*p.x+1):(i.1*p.x)], ncol = p.x);
+          
+      }
+      for(i.1 in 2:n.new){
+        #phi.full.all.new.temp keeps adding
+        # phi.full.all.new.temp[[i.1]] <- matrix(phi.full.all.new.temp[[i.1-1]] + phi.hat.full[, ((i.1-1)*p.x+1):(i.1*p.x)], ncol = p.x);
         if((i.1 %in% loc.block.full)){
+          print("there is a jump")
           phi.full.all.new[[i.1]] <- phi.full.all.new.temp[[i.1]]
         }
         if(!(i.1 %in% loc.block.full)){
+          # print("not a jump")
           phi.full.all.new[[i.1]] <- phi.full.all.new[[i.1-1]]
+          
+          # 2020/12/23: use the middle estimation (which is more stable) 
+          temp.loc <- c(1, loc.block.full, n.new+1)
+          for(i.2 in 1:length(loc.block.full)){
+            if(i.1 < temp.loc[i.2+1] & i.1 > temp.loc[i.2] ){
+              idx <- floor( (temp.loc[i.2+1] + temp.loc[i.2] )/2)
+              # print(i.1)
+              # print('idx:')
+              # print(idx)
+              phi.full.all.new[[i.1]] <- phi.full.all.new.temp[[idx]] 
+              
+            }
+          }
+          if(i.1 > loc.block.full[length(loc.block.full)]){
+            idx <- floor( (n.new + loc.block.full[length(loc.block.full)] )/2)
+            # print(i.1)
+            # print('idx:')
+            # print(idx)
+            phi.full.all.new[[i.1]] <- phi.full.all.new.temp[[idx]] 
+            
+          }
         }
+        
+          
+          
         forecast.all.new[, (blocks[i.1]):(blocks[i.1+1]-1)] <- pred.block(t(data_x), phi.full.all.new[[i.1]],
                                                                           blocks[i.1], p.x, p.y, blocks[i.1+1] - blocks[i.1]);
+
+        
       }
+      
 
     }
     residual <- t(data.y.temp[(1:T), ]) - forecast.all.new;
@@ -693,10 +729,11 @@ lm.first.step.blocks <- function(data_y, data_x, lambda1, lambda2, max.iteration
       #   i.cl <- i.cl + 1;
       #   if( gap[i.cl] > gap[i.cl+1] - se[i.cl+1] ){cl.number <- i.cl; break;}
       # }
-      while (i.cl < (length(gap) - 1)) {
-        i.cl <- i.cl + 1;
-        if( gap[i.cl] >= gap[i.cl + 1] ){cl.number <- i.cl; break;}
-      }
+      # while (i.cl < (length(gap) - 1)) {
+      #   i.cl <- i.cl + 1;
+      #   if( gap[i.cl] >= gap[i.cl + 1] ){cl.number <- i.cl; break;}
+      # }
+      cl.number <- which.max(gap)
       #cl.number
       
       cl.final <- kmeans(cp.final, centers = cl.number);
@@ -903,7 +940,7 @@ lm.second.step.search <- function(data_y,data_x, max.iteration = max.iteration, 
         sse.full[ii] <- temp.1 + temp.2;
         print(ii)
         print(sse.full[ii])
-        if(ii >= min(10, length(cp.list.full[[i+1]])) && sse.full[ii] >=  quantile(sse.full,0.20) ){
+        if(ii >= min(20, length(cp.list.full[[i+1]])) && sse.full[ii] >=  quantile(sse.full,0.20) ){
           break
         }
       }   
@@ -944,7 +981,7 @@ lm.second.step.search <- function(data_y,data_x, max.iteration = max.iteration, 
         sse.full[ii] <- temp.1 + temp.2;
         print(ii)
         print(sse.full[ii])
-        if(ii >= min(10, length(cp.list.full[[i+1]])) && sse.full[ii] >=  quantile(sse.full,0.20) ){
+        if(ii >= min(20, length(cp.list.full[[i+1]])) && sse.full[ii] >=  quantile(sse.full,0.20) ){
           break
         }
       }   
@@ -1223,10 +1260,11 @@ var.first.step.blocks <- function(data_y, lambda1, lambda2, q,  max.iteration, t
       gap <- cl.data$gap;
       se <- cl.data$SE.sim;
       i.cl <- 0;
-      while (i.cl < (length(gap)-1)) {
-        i.cl <- i.cl + 1;
-        if( gap[i.cl] > gap[i.cl+1] - se[i.cl+1] ){cl.number <- i.cl; break;}
-      }
+      # while (i.cl < (length(gap)-1)) {
+      #   i.cl <- i.cl + 1;
+      #   if( gap[i.cl] > gap[i.cl+1] - se[i.cl+1] ){cl.number <- i.cl; break;}
+      # }
+      cl.number <- which.max(gap)
       #cl.number
       
       cl.final <- kmeans(cp.final, centers = cl.number);
