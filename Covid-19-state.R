@@ -197,8 +197,8 @@ for(i in 1:length(state.names)){
 
 #S: the number of susceptible people
 n.all.matrix <- matrix(rep(n.all,T),ncol = n.domains,byrow = TRUE)
-# suppose 0.1 recovered people can became infected again later.
-immune.rate <- 0.9
+# suppose 0.5% recovered people can became infected again later.
+immune.rate <- 0.995
 S.all <- n.all.matrix - I.all - R.all*immune.rate;
 
 #the fraction of S, I and R
@@ -1254,7 +1254,6 @@ I.all <- cases.all - R.all;
 
 #S: the number of susceptible people
 n.all.matrix <- matrix(rep(n.all,T),ncol = n.domains,byrow = TRUE)
-immune.rate <- 0.9
 S.all <- n.all.matrix - I.all - R.all*immune.rate;
 # S.all <- n.all.matrix - I.all - R.all;
 
