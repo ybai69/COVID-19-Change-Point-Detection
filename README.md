@@ -12,7 +12,7 @@ We provide an [Example](Example.pdf) of COVID-19 data analysis for US states.
 
 #### State-Level 
 
-Code to reproduce state-level results can be found in the [Covid-19-stat.R](Covid-19-state.R)  and [Covid-19-state-prediction.R](Covid-19-state-prediction.R). 
+Code to reproduce state-level results can be found in the [Covid-19-state.R](Covid-19-state.R)  and [Covid-19-state-prediction.R](Covid-19-state-prediction.R). 
 
 Latest version of [State-level COVID-19 data](states-05-07.csv) can be found in the [New York times repository](https://raw.githubusercontent.com/nytimes/covid-19-data/master/us-states.csv)
 
