@@ -63,8 +63,9 @@ Here, we obtain the COVID-19 dataset from the New York Times Github repository. 
 #########  Loading Datasets #######################
 ## data extracted from New York Times state-level data 
 #obtained from following Github repository: https://github.com/nytimes/covid-19-data
-data.states <- read.csv("states-12-23.csv", header = TRUE)
-data.states <- data.states[as.Date(data.states$date) <= as.Date('2020-11-30'),]
+data.states <- read.csv("states-05-07.csv", header = TRUE)
+data.states <- data.states[as.Date(data.states$date) >= as.Date('2020-03-01'),]
+data.states <- data.states[as.Date(data.states$date) <= as.Date('2021-03-31'),]
 data.states$date <-  as.Date(data.states$date)
 
 # population data extracted from NATIONAL BUREAU OF ECONOMIC RESEARCH
@@ -82,7 +83,7 @@ After loading the datasets above, we can now clean the data and construct the va
 #########Change/choose the state name, lockdown date and reopen date below
 state.name <- "California"
 Date.1 <- '2020-03-19'
-Date.2 <- '2020-05-08'
+Date.2 <- '2020-06-12'
 lambda.1 <- c(1, 0.5, 0.1, 0.05, 0.01, 0.005, 0.001)
 ```
 
@@ -191,7 +192,7 @@ In addition to arguments $\texttt{data\char`_y}$, $\texttt{data\char`_x}$, there
 ```{r results = 'hide', fig.show='hide'}
 a.vals <- c(0.1, 0.15, 0.2, 0.25, 0.3)
 t.test <- 13
-T.full <- T + t.test
+T.full <- as.integer(as.Date("2020-11-30")  - as.Date("2020-03-01") )
 MRPE_1_new.full <- c()
 temp.full <- vector("list", length(a.vals));
 est.1.full <- vector("list", length(a.vals));
@@ -201,7 +202,11 @@ for(idx in 1:length(a.vals)){
   I <-  I.obs
   R <-  R.obs
   for(t in 2:T){
-    rate <- 1/(((t)+a.val*T.full )/((1 + a.val )*T.full))^2
+    if(t <= T.full){
+      rate <- 1/(((t)+a.val*T.full )/((1 + a.val )*T.full))^2
+    }else{
+      rate <- 1
+    }
     I[t] <- (I.obs[t] - I.obs[t-1])*rate + I[t-1]
   }
   
@@ -264,29 +269,26 @@ for(idx in 1:length(a.vals)){
   #b_t is the block size among the time points (1 : (length(date) - 1))
   if(state.name %in% c("Texas")){
     b_t <- 7
-    gamma.val <- 10
+    gamma.val <- 1
     HBIC = TRUE
-    
-  }else if(state.name %in% c("Florida", "Iowa")){
+  }else if(state.name %in% c("Florida")){
     b_t <- 7
     gamma.val <- 5
     HBIC = TRUE
-    
   }else if(state.name %in% c("California")){
     b_t <- 7
     gamma.val <- 5
     HBIC = TRUE
-    
   }else if(state.name %in% c("Oregon")){
     b_t <- 7
     gamma.val <- 5
     HBIC = TRUE
-    
   }else{
     b_t <- 7
-    gamma.val <- 10
+    gamma.val <- 1
     HBIC = TRUE
   }
+  
   b_n <- p * b_t
   temp.1 <- tbfl(method, Y_s, X_s, lambda.1.cv = lambda.1, lambda.2.cv = 0,
                  max.iteration = max.iteration, tol = tol, block.size = b_n, 
@@ -320,7 +322,11 @@ a.val <- a.final
 I <-  I.obs
 R <-  R.obs
 for(t in 2:T){
-  rate <- 1/(((t)+a.val*T.full)/((1 + a.val )*T.full))^2
+  if(t <= T.full){
+    rate <- 1/(((t)+a.val*T.full )/((1 + a.val )*T.full))^2
+  }else{
+    rate <- 1
+  }
   I[t] <- (I.obs[t] - I.obs[t-1])*rate + I[t-1]
 }
 R.rate.all[, 1]<- R/n.all[1]
@@ -372,30 +378,27 @@ method <- c("MLR")
 p <- 2
 #b_t is the block size among the time points (1 : (length(date) - 1))
 if(state.name %in% c("Texas")){
-  b_t <- 7
-  gamma.val <- 10
-  HBIC = TRUE
-
-}else if(state.name %in% c("Florida", "Iowa")){
-  b_t <- 7
-  gamma.val <- 5
-  HBIC = TRUE
-
-}else if(state.name %in% c("California")){
-  b_t <- 7
-  gamma.val <- 5
-  HBIC = TRUE
-
-}else if(state.name %in% c("Oregon")){
-  b_t <- 7
-  gamma.val <- 5
-  HBIC = TRUE
-
-}else{
-  b_t <- 7
-  gamma.val <- 10
-  HBIC = TRUE
-}
+    b_t <- 7
+    gamma.val <- 1
+    HBIC = TRUE
+  }else if(state.name %in% c("Florida")){
+    b_t <- 7
+    gamma.val <- 5
+    HBIC = TRUE
+  }else if(state.name %in% c("California")){
+    b_t <- 7
+    gamma.val <- 5
+    HBIC = TRUE
+  }else if(state.name %in% c("Oregon")){
+    b_t <- 7
+    gamma.val <- 5
+    HBIC = TRUE
+  }else{
+    b_t <- 7
+    gamma.val <- 1
+    HBIC = TRUE
+  }
+  
 
 b_n <- p * b_t
 temp.1 <- tbfl(method, Y_s, X_s, lambda.1.cv = lambda.1, lambda.2.cv = 0, 
@@ -501,7 +504,11 @@ R.hat.1 <- R.hat.1*n.all[1]
 I.hat.obs.1 <- rep(0,T)
 I.hat.obs.1[1] <- I.rate.all.obs[1,1]
 for(i in 2:T){
-  rate <- (((i)+a.val*T.full)/((1 + a.val )*T.full))^2
+  if(i <= T.full){
+    rate <- (((i)+a.val*T.full )/((1 + a.val )*T.full))^2
+  }else{
+    rate <- 1
+  }
   I.hat.obs.1[i] <-  I.rate.all.obs[i-1,1] + Y.hat.1[(i-2)*2+2]*rate
 }
 I.hat.obs.1 <- I.hat.obs.1*n.all[1]
@@ -529,7 +536,11 @@ I.tilde.1 <- I.tilde.1*n.all[1]
 I.tilde.1 <- rep(0,T)
 I.tilde.1[1] <- I.rate.all.obs[1,1]
 for(i in 2:T){
-  rate <- (((i)+a.val*T.full)/((1 + a.val )*T.full))^2
+  if(i <= T.full){
+    rate <- (((i)+a.val*T.full )/((1 + a.val )*T.full))^2
+  }else{
+    rate <- 1
+  }
   I.tilde.1[i] <- I.tilde.1[i-1] + Y.hat.1[(i-2)*2+2]*rate
 }
 I.tilde.1 <- I.tilde.1*n.all[1]
@@ -566,8 +577,11 @@ legend(as.Date(date.region[length(date.region)*3/4]), 1/4*max(R, R.tilde.1),
 #################################################
 a.val <- a.final
 for(t in 2:T){
-  # rate <- 1/(((t)+a.val*T)/((1 + a.val )*T))^2
-  rate <- 1/(((t)+a.val*T.full)/((1 + a.val )*T.full))^2
+  if(t <= T.full){
+    rate <- 1/(((t)+a.val*T.full )/((1 + a.val )*T.full))^2
+  }else{
+    rate <- 1
+  }
   # print(1/rate)
   I.rate.all[t, ] <- (I.rate.all.obs[t, ] - I.rate.all.obs[t-1, ])*rate + I.rate.all[t-1, ]
 }
@@ -682,7 +696,11 @@ R.hat.2.3 <- R.hat.2.3*n.all[1]
 I.hat.obs.2.3 <- rep(0,T)
 I.hat.obs.2.3[1] <- I.rate.all.obs[1,1]
 for(i in 2:T){
-  rate <- (((i)+a.val*T.full)/((1 + a.val )*T.full))^2
+  if(i <= T.full){
+    rate <- (((i)+a.val*T.full )/((1 + a.val )*T.full))^2
+  }else{
+    rate <- 1
+  }
   I.hat.obs.2.3[i] <-  I.rate.all.obs[i-1,1] + Y.hat.2.3[(i-2)*2+2]*rate
 }
 I.hat.obs.2.3 <- I.hat.obs.2.3*n.all[1]
@@ -705,7 +723,11 @@ R.tilde.2.3 <- R.tilde.2.3*n.all[1]
 I.tilde.2.3 <- rep(0, T)
 I.tilde.2.3[1] <- I.rate.all.obs[1,1]
 for(i in 2:T){
-  rate <- (((i)+a.val*T.full)/((1 + a.val )*T.full))^2
+  if(i <= T.full){
+    rate <- (((i)+a.val*T.full )/((1 + a.val )*T.full))^2
+  }else{
+    rate <- 1
+  }
   I.tilde.2.3[i] <- I.tilde.2.3[i-1] + Y.hat.2.3[(i-2)*2+2]*rate
 }
 I.tilde.2.3 <- I.tilde.2.3*n.all[1]
@@ -848,7 +870,11 @@ R.hat.3 <- R.hat.3*n.all[1]
 I.hat.obs.3 <- rep(0,T)
 I.hat.obs.3[1] <- I.rate.all.obs[1,1]
 for(i in 2:T){
-  rate <- (((i)+a.val*T.full)/((1 + a.val )*T.full))^2
+  if(i <= T.full){
+    rate <- (((i)+a.val*T.full )/((1 + a.val )*T.full))^2
+  }else{
+    rate <- 1
+  }
   I.hat.obs.3[i] <-  I.rate.all.obs[i-1,1] + Y.hat.3[(i-2)*2+2]*rate
 }
 I.hat.obs.3 <- I.hat.obs.3*n.all[1]
@@ -870,7 +896,11 @@ R.tilde.3 <- R.tilde.3*n.all[1]
 I.tilde.3 <- rep(0,T)
 I.tilde.3[1] <- I.rate.all[1,1]
 for(i in 2:T){
-  rate <- (((i)+a.val*T.full)/((1 + a.val )*T.full))^2
+  if(i <= T.full){
+    rate <- (((i)+a.val*T.full )/((1 + a.val )*T.full))^2
+  }else{
+    rate <- 1
+  }
   I.tilde.3[i] <- I.tilde.3[i-1] + Y.hat.3[(i-2)*2+2]*rate
 }
 I.tilde.3 <- I.tilde.3*n.all[1]
