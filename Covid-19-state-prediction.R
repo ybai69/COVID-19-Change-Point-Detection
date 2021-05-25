@@ -27,8 +27,9 @@ sourceCpp("functions_BFL.cpp")
 # use the data after March
 # data.states <- data.states[as.Date(data.states$date) >= as.Date('2020-03-01'),]
 # data.states <- data.states[as.Date(data.states$date) <= as.Date('2020-08-18'),]
-data.states <- read.csv("states-12-23.csv", header = TRUE)
-data.states <- data.states[as.Date(data.states$date) <= as.Date('2020-12-13'),]
+data.states <- read.csv("states-05-07.csv", header = TRUE)
+data.states <- data.states[as.Date(data.states$date) >= as.Date('2020-03-01'),]
+data.states <- data.states[as.Date(data.states$date) <= as.Date('2021-04-13'),]
 data.states$date <-  as.Date(data.states$date)
 
 # population data extracted from NATIONAL BUREAU OF ECONOMIC RESEARCH
@@ -44,11 +45,14 @@ states.distance <-read.csv("sf12010statedistancemiles.csv", header = TRUE)
 #########Change/choose the state name, lockdown date and reopen date below!!!!!!
 state.name <- "New York"
 Date.1 <- '2020-03-22'
-Date.2 <- '2020-05-15'
+#Date.2 <- '2020-05-15'
+# phase 3 reopen date
+Date.2 <- '2020-07-06'
 
-# state.name <- "Washington"
-# Date.1 <- '2020-03-23'
-# Date.2 <- '2020-05-30'
+state.name <- "Oregon"
+Date.1 <- '2020-03-23'
+# phase 1 reopen date
+Date.2 <- '2020-05-15'
 
 state.name <- "Florida"
 Date.1 <- '2020-04-03'
@@ -59,7 +63,10 @@ Date.2 <- '2020-06-05'
 
 state.name <- "California"
 Date.1 <- '2020-03-19'
-Date.2 <- '2020-05-08'
+# phase 1 reopen date
+#Date.2 <- '2020-05-08'
+# phase 2 reopen date
+Date.2 <- '2020-06-12'
 
 state.name <- "Texas"
 Date.1 <- '2020-04-02'
@@ -68,28 +75,6 @@ Date.1 <- '2020-04-02'
 # phase 3 reopen date
 Date.2 <- '2020-06-03'
 
-
-# state.name <- "Iowa"
-# # No statewide stay-at-home order issued
-# Date.1 <- NULL
-# # loosening restrictions
-# Date.2 <- '2020-05-01'
-# 
-# state.name <- "Colorado"
-# Date.1 <- '2020-03-26'
-# Date.2 <- '2020-04-27'
-
-state.name <- "Oregon"
-Date.1 <- '2020-03-23'
-Date.2 <- '2020-05-15'
-
-# state.name <- "Alabama"
-# Date.1 <- '2020-04-04'
-# Date.2 <- '2020-04-30'
-# 
-# state.name <- "Connecticut"
-# Date.1 <- '2020-03-23'
-# Date.2 <- '2020-05-06'
 
 
 
@@ -198,6 +183,7 @@ cols <- brewer.pal(n.domains, "Spectral")
 # a.vals <- c(0.2, 0.5, 1, 2, 5, 50)
 # a.vals <- c(0.2, 0.25, 0.3)
 a.vals <- c(0.1, 0.15, 0.2, 0.25, 0.3)
+T.full <- as.integer(as.Date("2020-11-30")  - as.Date("2020-03-01") )
 MRPE_1_new.full <- c()
 temp.full <- vector("list", length(a.vals));
 est.1.full <- vector("list", length(a.vals));
@@ -207,7 +193,13 @@ for(idx in 1:length(a.vals)){
   I <-  I.obs
   R <-  R.obs
   for(t in 2:T){
-    rate <- 1/(((t)+a.val*T)/((1 + a.val )*T))^2
+    if(t <= T.full){
+      rate <- 1/(((t)+a.val*T.full )/((1 + a.val )*T.full))^2
+      
+    }else{
+      rate <- 1
+    }
+    #rate <- 1/(((t)+a.val*T)/((1 + a.val )*T))^2
     print(1/rate)
     I[t] <- (I.obs[t] - I.obs[t-1])*rate + I[t-1]
   }
@@ -273,7 +265,13 @@ for(idx in 1:length(a.vals)){
   
   Delta.I <- rep(0, n.test - 1)
   for(i in 2:n.test){
-    rate <- (((T - n.test + i)+a.val*T)/((1 + a.val )*T))^2
+    if(T - n.test + i <= T.full){
+      rate <- (((T - n.test + i)+a.val*T.full)/((1 + a.val )*T.full))^2
+      
+    }else{
+      rate <- 1
+    }
+    #rate <- (((T - n.test + i)+a.val*T)/((1 + a.val )*T))^2
     Delta.I[i - 1] <- Y.test[(i - 2)*2 + 2]*rate
   }
   Delta.I <- Delta.I*n.all[1]
@@ -303,9 +301,8 @@ for(idx in 1:length(a.vals)){
   
   # temp <- tbfl(method, Y_s, X_s, lambda.2.cv = 0, max.iteration = max.iteration, tol = tol, block.size = b_n)
   if(state.name %in% c("Texas")){
-    # b_t <- 5
     b_t <- 7
-    gamma.val <- 10
+    gamma.val <- 1
     HBIC = TRUE
     
   }else if(state.name %in% c("Florida")){
@@ -325,7 +322,7 @@ for(idx in 1:length(a.vals)){
     
   }else{
     b_t <- 7
-    gamma.val <- 10
+    gamma.val <- 1
     HBIC = TRUE
   }
   
@@ -393,7 +390,13 @@ a.val <- a.final
 I <-  I.obs
 R <-  R.obs
 for(t in 2:T){
-  rate <- 1/(((t)+a.val*T)/((1 + a.val )*T))^2
+  if(t <= T.full){
+    rate <- 1/(((t)+a.val*T.full )/((1 + a.val )*T.full))^2
+    
+  }else{
+    rate <- 1
+  }
+  #rate <- 1/(((t)+a.val*T)/((1 + a.val )*T))^2
   print(1/rate)
   I[t] <- (I.obs[t] - I.obs[t-1])*rate + I[t-1]
   
@@ -462,7 +465,13 @@ Delta.R <- Delta.R*n.all[1]
 
 Delta.I <- rep(0, n.test - 1)
 for(i in 2:n.test){
-  rate <- (((T - n.test + i)+a.val*T)/((1 + a.val )*T))^2
+  if(T - n.test + i <= T.full){
+    rate <- (((T - n.test + i)+a.val*T.full)/((1 + a.val )*T.full))^2
+    
+  }else{
+    rate <- 1
+  }
+  #rate <- (((T - n.test + i)+a.val*T)/((1 + a.val )*T))^2
   Delta.I[i - 1] <- Y.test[(i - 2)*2 + 2]*rate
 }
 Delta.I <- Delta.I*n.all[1]
@@ -492,9 +501,8 @@ p <- 2
 
 # temp <- tbfl(method, Y_s, X_s, lambda.2.cv = 0, max.iteration = max.iteration, tol = tol, block.size = b_n)
 if(state.name %in% c("Texas")){
-  # b_t <- 5
   b_t <- 7
-  gamma.val <- 10
+  gamma.val <- 1
   HBIC = TRUE
   
 }else if(state.name %in% c("Florida")){
@@ -514,7 +522,7 @@ if(state.name %in% c("Texas")){
   
 }else{
   b_t <- 7
-  gamma.val <- 10
+  gamma.val <- 1
   HBIC = TRUE
 }
 
@@ -568,7 +576,13 @@ Delta.R.hat.1 <- Delta.R.hat.1*n.all[1]
 
 Delta.I.hat.1 <- rep(0, n.test - 1)
 for(i in 2:n.test){
-  rate <- (((T - n.test + i)+a.val*T)/((1 + a.val )*T))^2
+  if(T - n.test + i <= T.full){
+    rate <- (((T - n.test + i)+a.val*T.full)/((1 + a.val )*T.full))^2
+    
+  }else{
+    rate <- 1
+  }
+  #rate <- (((T - n.test + i)+a.val*T)/((1 + a.val )*T))^2
   Delta.I.hat.1[i - 1] <- Y.hat.1.new[(i - 2)*2 + 2]*rate
 }
 Delta.I.hat.1 <- Delta.I.hat.1*n.all[1]
@@ -585,21 +599,19 @@ R.hat.1.new <- R.hat.1.new*n.all[1]
 I.hat.1.new <- rep(0, n.test)
 I.hat.1.new[1] <- I.rate.all.obs[T - n.test + 1, 1]
 for(i in 2:n.test){
-  rate <- (((T - n.test + i)+a.val*T)/((1 + a.val )*T))^2
+  if(T - n.test + i <= T.full){
+    rate <- (((T - n.test + i)+a.val*T.full)/((1 + a.val )*T.full))^2
+    
+  }else{
+    rate <- 1
+  }
+  #rate <- (((T - n.test + i)+a.val*T)/((1 + a.val )*T))^2
   print(rate)
   I.hat.1.new[i] <-  I.rate.all.obs[T - n.test + (i-1), 1] + Y.hat.1.new[(i-2)*2+2]*rate
 }
 I.hat.1.new <- I.hat.1.new*n.all[1]
 
-# I.hat.1.new <- rep(0, n.test)
-# I.hat.1.new[1] <- I.rate.all[T - n.test + 1, 1]
-# for(i in 2:n.test){
-#   I.hat.1.new[i] <-  I.rate.all[T - n.test + (i-1), 1] + Y.hat.1.new[(i-2)*2+2]
-# }
-# I.hat.1.new <- I.hat.1.new*n.all[1]
 
-# I.test <- I[(T - n.test + 1):T]
-# R.test <- R[(T - n.test + 1):T]
 I.test <- I.obs[(T - n.test + 1):T]
 R.test <- R.obs[(T - n.test + 1):T]
 
@@ -621,7 +633,13 @@ a.val <- a.final
 I.rate.all <- I.rate.all.obs
 R.rate.all <- R.rate.all.obs
 for(t in 2:T){
-  rate <- 1/(((t)+a.val*T)/((1 + a.val )*T))^2
+  if(t <= T.full){
+    rate <- 1/(((t)+a.val*T.full )/((1 + a.val )*T.full))^2
+    
+  }else{
+    rate <- 1
+  }
+  #rate <- 1/(((t)+a.val*T)/((1 + a.val )*T))^2
   print(1/rate)
   I.rate.all[t, ] <- (I.rate.all.obs[t, ] - I.rate.all.obs[t-1, ])*rate + I.rate.all[t-1, ]
 }
@@ -681,21 +699,16 @@ R.hat.2.1.new <- R.hat.2.1.new*n.all[1]
 
 
 
-# I.hat.2.1.new <- rep(0, n.test)
-# I.hat.2.1.new[1] <- I.rate.all[T - n.test + 1, 1]
-# for(i in 2:n.test){
-#   I.hat.2.1.new[i] <-  I.rate.all[T - n.test + (i-1), 1] + Y.hat.2.1.new[(i-2)*2+2]
-# }
-# I.hat.2.1.new <- I.hat.2.1.new*n.all[1]
-# 
-# I.test <- I[(T - n.test + 1):T]
-# R.test <- R[(T - n.test + 1):T]
-
-
 I.hat.2.1.new <- rep(0, n.test)
 I.hat.2.1.new[1] <- I.rate.all.obs[T - n.test + 1, 1]
 for(i in 2:n.test){
-  rate <- (((T - n.test + i)+a.val*T)/((1 + a.val )*T))^2
+  if(T - n.test + i <= T.full){
+    rate <- (((T - n.test + i)+a.val*T.full)/((1 + a.val )*T.full))^2
+    
+  }else{
+    rate <- 1
+  }
+  #rate <- (((T - n.test + i)+a.val*T)/((1 + a.val )*T))^2
   print(rate)
   I.hat.2.1.new[i] <-  I.rate.all.obs[T - n.test + (i-1), 1] + Y.hat.2.1.new[(i-2)*2+2]*rate
 }
@@ -770,20 +783,17 @@ for(i in 2:n.test){
 }
 R.hat.2.2.new <- R.hat.2.2.new*n.all[1]
 
-# I.hat.2.2.new <- rep(0, n.test)
-# I.hat.2.2.new[1] <- I.rate.all[T - n.test + 1, 1]
-# for(i in 2:n.test){
-#   I.hat.2.2.new[i] <-  I.rate.all[T - n.test + (i-1), 1] + Y.hat.2.2.new[(i-2)*2+2]
-# }
-# I.hat.2.2.new <- I.hat.2.2.new*n.all[1]
-# 
-# I.test <- I[(T - n.test + 1):T]
-# R.test <- R[(T - n.test + 1):T]
 
 I.hat.2.2.new <- rep(0, n.test)
 I.hat.2.2.new[1] <- I.rate.all.obs[T - n.test + 1, 1]
 for(i in 2:n.test){
-  rate <- (((T - n.test + i)+a.val*T)/((1 + a.val )*T))^2
+  if(T - n.test + i <= T.full){
+    rate <- (((T - n.test + i)+a.val*T.full)/((1 + a.val )*T.full))^2
+    
+  }else{
+    rate <- 1
+  }
+  #rate <- (((T - n.test + i)+a.val*T)/((1 + a.val )*T))^2
   print(rate)
   I.hat.2.2.new[i] <-  I.rate.all.obs[T - n.test + (i-1), 1] + Y.hat.2.2.new[(i-2)*2+2]*rate
 }
@@ -886,7 +896,13 @@ R.rate.all.obs <- R.rate.all
 
 a.val <- a.final
 for(t in 2:T){
-  rate <- 1/(((t)+a.val*T)/((1 + a.val )*T))^2
+  if(t <= T.full){
+    rate <- 1/(((t)+a.val*T.full )/((1 + a.val )*T.full))^2
+    
+  }else{
+    rate <- 1
+  }
+  #rate <- 1/(((t)+a.val*T)/((1 + a.val )*T))^2
   print(1/rate)
   I.rate.all[t, ] <- (I.rate.all.obs[t, ] - I.rate.all.obs[t-1, ])*rate + I.rate.all[t-1, ]
 }
@@ -994,21 +1010,18 @@ for(i in 2:n.test){
 }
 R.hat.2.3.new <- R.hat.2.3.new*n.all[1]
 
-# I.hat.2.3.new <- rep(0, n.test)
-# I.hat.2.3.new[1] <- I.rate.all[T - n.test + 1, 1]
-# for(i in 2:n.test){
-#   I.hat.2.3.new[i] <-  I.rate.all[T - n.test + (i-1), 1] + Y.hat.2.3.new[(i-2)*2+2]
-# }
-# I.hat.2.3.new <- I.hat.2.3.new*n.all[1]
-# 
-# I.test <- I[(T - n.test + 1):T]
-# R.test <- R[(T - n.test + 1):T]
 
 
 I.hat.2.3.new <- rep(0, n.test)
 I.hat.2.3.new[1] <- I.rate.all.obs[T - n.test + 1, 1]
 for(i in 2:n.test){
-  rate <- (((T - n.test + i)+a.val*T)/((1 + a.val )*T))^2
+  if(T - n.test + i <= T.full){
+    rate <- (((T - n.test + i)+a.val*T.full)/((1 + a.val )*T.full))^2
+    
+  }else{
+    rate <- 1
+  }
+  #rate <- (((T - n.test + i)+a.val*T)/((1 + a.val )*T))^2
   print(rate)
   I.hat.2.3.new[i] <-  I.rate.all.obs[T - n.test + (i-1), 1] + Y.hat.2.3.new[(i-2)*2+2]*rate
 }
@@ -1033,7 +1046,13 @@ Delta.R.hat.2 <- Delta.R.hat.2*n.all[1]
 
 Delta.I.hat.2 <- rep(0, n.test - 1)
 for(i in 2:n.test){
-  rate <- (((T - n.test + i)+a.val*T)/((1 + a.val )*T))^2
+  if(T - n.test + i <= T.full){
+    rate <- (((T - n.test + i)+a.val*T.full)/((1 + a.val )*T.full))^2
+    
+  }else{
+    rate <- 1
+  }
+  #rate <- (((T - n.test + i)+a.val*T)/((1 + a.val )*T))^2
   Delta.I.hat.2[i - 1] <- Y.hat.2.3.new[(i - 2)*2 + 2]*rate
 }
 Delta.I.hat.2 <- Delta.I.hat.2*n.all[1]
@@ -1166,21 +1185,18 @@ for(i in 2:n.test){
 }
 R.hat.3.new <- R.hat.3.new*n.all[1]
 
-# I.hat.3.new <- rep(0, n.test)
-# I.hat.3.new[1] <- I.rate.all[T - n.test + 1, 1]
-# for(i in 2:n.test){
-#   I.hat.3.new[i] <-  I.rate.all[T - n.test + (i-1), 1] + Y.hat.3.new[(i-2)*2+2]
-# }
-# I.hat.3.new <- I.hat.3.new*n.all[1]
-# 
-# I.test <- I[(T - n.test + 1):T]
-# R.test <- R[(T - n.test + 1):T]
 
 
 I.hat.3.new <- rep(0, n.test)
 I.hat.3.new[1] <- I.rate.all.obs[T - n.test + 1, 1]
 for(i in 2:n.test){
-  rate <- (((T - n.test + i)+a.val*T)/((1 + a.val )*T))^2
+  if(T - n.test + i <= T.full){
+    rate <- (((T - n.test + i)+a.val*T.full)/((1 + a.val )*T.full))^2
+    
+  }else{
+    rate <- 1
+  }
+  #rate <- (((T - n.test + i)+a.val*T)/((1 + a.val )*T))^2
   print(rate)
   I.hat.3.new[i] <-  I.rate.all.obs[T - n.test + (i-1), 1] + Y.hat.3.new[(i-2)*2+2]*rate
 }
@@ -1206,7 +1222,13 @@ Delta.R.hat.3 <- Delta.R.hat.3*n.all[1]
 
 Delta.I.hat.3 <- rep(0, n.test - 1)
 for(i in 2:n.test){
-  rate <- (((T - n.test + i)+a.val*T)/((1 + a.val )*T))^2
+  if(T - n.test + i <= T.full){
+    rate <- (((T - n.test + i)+a.val*T.full)/((1 + a.val )*T.full))^2
+    
+  }else{
+    rate <- 1
+  }
+  #rate <- (((T - n.test + i)+a.val*T)/((1 + a.val )*T))^2
   Delta.I.hat.3[i - 1] <- Y.hat.3.new[(i - 2)*2 + 2]*rate
 }
 Delta.I.hat.3 <- Delta.I.hat.3*n.all[1]
@@ -1249,13 +1271,18 @@ dev.off()
 n.domains <- length(state.names.all)
 distance_4 <- rep(0, n.domains)
 #Power Distance Weights.
+# for(i in 2:n.domains){
+#   distance.temp <- sort(l2.diff)[i]
+#   distance_4[i] <- 1/(distance.temp)
+# }
 for(i in 2:n.domains){
-  distance.temp <- sort(l2.diff)[i]
-  distance_4[i] <- 1/(distance.temp)
+  distance.temp <- (l2.diff)[i]
+  distance_4[i] <- 1/(distance.temp)^1
 }
 
 
-Omega_4 <- distance_4/sum(distance_4)
+
+Omega_4 <- distance_4/sum(distance_4, na.rm = TRUE)
 
 rows.combined <- 2*(T-1)
 cols.combined <- n.domains
@@ -1263,7 +1290,10 @@ matrix.combined <- matrix(0, nrow=rows.combined, ncol=cols.combined)
 matrix.combined[ seq(1, rows.combined, 2),] <- as.matrix(unname(R.rate.all.full))[-1, ] - as.matrix(unname(R.rate.all.full))[-T, ]
 matrix.combined[ seq(2, rows.combined, 2),] <- as.matrix(unname(I.rate.all.full))[-1, ] - as.matrix(unname(I.rate.all.full))[-T, ]
 neighbor.matrix <- matrix.combined
-neighbor.weighted_4 <- neighbor.matrix %*% (Omega_4)
+#neighbor.weighted_4 <- neighbor.matrix %*% (Omega_4)
+neighbor.weighted_4 <- neighbor.matrix[, !is.na(Omega_4)] %*% (Omega_4)[!is.na(Omega_4)]
+
+
 
 #remove the last two elements  at time point t=T
 #and add two elements for time point t= 0
@@ -1301,20 +1331,17 @@ for(i in 2:n.test){
 }
 R.hat.2.4.new <- R.hat.2.4.new*n.all[1]
 
-# I.hat.2.4.new <- rep(0, n.test)
-# I.hat.2.4.new[1] <- I.rate.all[T - n.test + 1, 1]
-# for(i in 2:n.test){
-#   I.hat.2.4.new[i] <-  I.rate.all[T - n.test + (i-1), 1] + Y.hat.2.4.new[(i-2)*2+2]
-# }
-# I.hat.2.4.new <- I.hat.2.4.new*n.all[1]
-# 
-# I.test <- I[(T - n.test + 1):T]
-# R.test <- R[(T - n.test + 1):T]
 
 I.hat.2.4.new <- rep(0, n.test)
 I.hat.2.4.new[1] <- I.rate.all.obs[T - n.test + 1, 1]
 for(i in 2:n.test){
-  rate <- (((T - n.test + i)+a.val*T)/((1 + a.val )*T))^2
+  if(T - n.test + i <= T.full){
+    rate <- (((T - n.test + i)+a.val*T.full)/((1 + a.val )*T.full))^2
+    
+  }else{
+    rate <- 1
+  }
+  #rate <- (((T - n.test + i)+a.val*T)/((1 + a.val )*T))^2
   print(rate)
   I.hat.2.4.new[i] <-  I.rate.all.obs[T - n.test + (i-1), 1] + Y.hat.2.4.new[(i-2)*2+2]*rate
 }
@@ -1359,8 +1386,6 @@ MRPE_3_new_R
 
 
 library("xtable")
-# statesnames <- c("new york", "washington", "florida", "california", "texas")
-# statesnames <- c("iowa", "colorado", "oregon", "alabama", "connecticut")
 statesnames <- c("new york", "oregon", "florida", "california", "texas")
 MPE_res_I<- c()
 MPE_res_R <- c()
@@ -1387,7 +1412,6 @@ print(table.MPE_R_res,include.rownames = FALSE, include.colnames = FALSE)
 
 
 
-# statesnames <- c("new york", "washington", "florida", "california", "texas")
 statesnames <- c("new york", "oregon", "florida", "california", "texas")
 alpha_res <- c()
 for(i in 1:length(statesnames)){
@@ -1430,7 +1454,6 @@ print(table.alpha_res,include.rownames = FALSE, include.colnames = FALSE ,hline.
 
 
 library("xtable")
-# statesnames <- c("new york", "washington", "florida", "california", "texas")
 statesnames <- c("new york", "oregon", "florida", "california", "texas")
 for(i in 1:length(statesnames)){
   print(statesnames[i])
@@ -1444,7 +1467,7 @@ for(i in 1:length(statesnames)){
 
 
 library("xtable")
-statesnames <- c("new york","california")
+statesnames <- c("new york", "california")
 MPE_res <- c()
 for(i in 1:length(statesnames)){
   filename <- paste0(statesnames[i],"_domain_prediction.RData")
@@ -1452,7 +1475,8 @@ for(i in 1:length(statesnames)){
   MPE_res <- cbind(MPE_res,  round(c(MRPE_1_new_I, MRPE_2.1_new_I, MRPE_2.2_new_I, MRPE_2.3_new_I, MRPE_2.4_new_I, MRPE_3_new_I ),4), 
                    round(c(MRPE_1_new_R, MRPE_2.1_new_R, MRPE_2.2_new_R, MRPE_2.3_new_R, MRPE_2.4_new_R, MRPE_3_new_R),4))
 }
-countiesnames <- c( "miami-dade", "horry") 
+# countiesnames <- c( "miami-dade", "horry") 
+countiesnames <- c( "riverside", "santa barbara") 
 for(i in 1:length(countiesnames)){
   filename <- paste0(countiesnames[i],"_domain_prediction.RData")
   load(filename)
