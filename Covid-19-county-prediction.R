@@ -1305,6 +1305,13 @@ print("estimated sample variance for hat residual:")
 print(var(residual.matrix.train))
 
 var <- VARselect(residual.matrix.train, lag.max = 7, type = "none")
+# if(county.lowernames[1] == "new york city"){
+#   var <- VARselect(residual.matrix.train, lag.max = 2, type = "none")
+# }else{
+#   var <- VARselect(residual.matrix.train, lag.max = 7, type = "none")
+# }
+
+
 
 var$selection
 # choose the p by BIC
@@ -1345,7 +1352,12 @@ if(is.null(temp.var$cp.final)){
   
   for(i in 1:m){
     residual.matrix.train.temp <- residual.matrix.train[ cp.residual[i]: (cp.residual[i+1]-1),  ]
-    var.temp <- VARselect(residual.matrix.train.temp, lag.max = 7, type = "none")
+    #var.temp <- VARselect(residual.matrix.train.temp, lag.max = 7, type = "none")
+    if(county.lowernames[1] == "new york city"){
+      var.temp <- VARselect(residual.matrix.train.temp, lag.max = 2, type = "none")
+    }else{
+      var.temp <- VARselect(residual.matrix.train.temp, lag.max = 7, type = "none")
+    }
     var.temp$selection
     p.est <- var.temp$selection["SC(n)"]
     var1 <- VAR(residual.matrix.train.temp, p = p.est, type = "none")

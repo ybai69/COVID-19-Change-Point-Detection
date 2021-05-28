@@ -1738,6 +1738,12 @@ print("estimated sample variance for hat residual:")
 print(var(residual.matrix))
 
 var <- VARselect(residual.matrix, lag.max = 7, type = "none")
+# if(county.lowernames[1] == "new york city"){
+#   var <- VARselect(residual.matrix, lag.max = 2, type = "none")
+# }else{
+#   var <- VARselect(residual.matrix, lag.max = 7, type = "none")
+# }
+
 
 var$selection
 # choose the p by BIC
@@ -1771,7 +1777,11 @@ if(is.null(temp.var$cp.final)){
   
   for(i in 1:m){
     residual.matrix.temp <- residual.matrix[ cp.residual[i]: (cp.residual[i+1]-1),  ]
-    var.temp <- VARselect(residual.matrix.temp, lag.max = 7, type = "none")
+    if(county.lowernames[1] == "new york city"){
+      var.temp <- VARselect(residual.matrix.temp, lag.max = 2, type = "none")
+    }else{
+      var.temp <- VARselect(residual.matrix.temp, lag.max = 7, type = "none")
+    }
     var.temp$selection
     p.est <- var.temp$selection["SC(n)"]
     print(p.est)
@@ -1783,19 +1793,19 @@ if(is.null(temp.var$cp.final)){
 }
 
 
-filename <- paste0("var_coef_", county.lowernames[1], "_b_",  b_t, ".pdf")
+filename <- paste0("var_coef_", county.lowernames[1], "_b_",  b_t, "_qt_", p.est,".pdf")
 pdf(filename, width = 11, height = 8.5)
 par(mar = c(4., 4.5, 1.5, 1))
 print(plot.ar.matrix(coef.matrix, p = p.est))
 dev.off()
 
-filename <- paste0("acf_residual_tilde_Delta_I_", county.lowernames[1], "_b_",  b_t, ".pdf")
+filename <- paste0("acf_residual_tilde_Delta_I_", county.lowernames[1], "_b_",  b_t, "_qt_", p.est, ".pdf")
 pdf(filename, width=11, height = 8.5)
 par(mar = c(4.8, 6, 1.7, 1.5), mgp=c(3.5, 1.1, 0))
 acf(residual.tilde[, 1], cex.lab = 3 , cex.axis = 3, lwd = 3)
 dev.off()
 
-filename <- paste0("acf_residual_tilde_Delta_R_", county.lowernames[1], "_b_",  b_t, ".pdf")
+filename <- paste0("acf_residual_tilde_Delta_R_", county.lowernames[1], "_b_",  b_t, "_qt_", p.est, ".pdf")
 pdf(filename, width=11, height=8.5)
 par(mar = c(4.8, 6, 1.7, 1.5), mgp=c(3.5, 1.1, 0))
 acf(residual.tilde[, 2], cex.lab = 3 , cex.axis = 3, lwd = 3)
