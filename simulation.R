@@ -12,21 +12,26 @@ library("vars")
 ######## Call Functions #########################
 source("functions_BFL.R")
 sourceCpp("functions_BFL.cpp")
+#library("LinearDetect")
 
 #########Change/choose the scenario number and block size paramter below!!!!!!
-# Scenario A, B, C, D, E, F-> 1, 2, 3, 4, 5, 6
-# sim 1: SIR + spatial + VAR(p)
+# Scenario A, B, C, D, E, F, G, H-> 1, 2, 3, 4, 5, 6, 7, 8
+# sim 1/A: SIR + spatial + VAR(p) (1 CP)
 sim <- 1
-#sim 2: exp function for underreporting rate
+#sim 2/B: exp function for underreporting rate (2 CPs)
 sim <- 2
-#sim 3: quadratic function + spatial + VAR(p)
+#sim 3/C: quadratic function + spatial + VAR(p) (1 CP)
 sim <- 3
-# sim 4:  SIR
+# sim 4/D: SIR (2 CPs)
 sim <- 4
-# sim 5: SIR + spatial 
+# sim 5/E: SIR + spatial (1 CP)
 sim <- 5
-#sim 6: quadratic function for underreporting rate
-sim <- 6
+#sim 6/F: quadratic function for underreporting rate (2 CPs)
+sim <- 6 
+#sim 7/G: SIR (3 CPs)
+sim <- 7
+#sim 8/H: SIR (4 CPs)
+sim <- 8
 
 
 #b_t is the block size among the time points (1 : (length(date) - 1))
@@ -34,6 +39,9 @@ b_t <- 4
 b_t <- 8
 b_t <- 12
 
+if(sim %in% c(7, 8)){
+    b_t <- 8 
+}
 
 ######## General Parameters #########################
 
@@ -72,12 +80,44 @@ if(sim %in% c(1, 3, 5)){
     beta <- c(rep(beta_1, brk[1] - 1), rep(beta_2, (brk[2] - 1) - (brk[1] - 1) ), rep(beta_3, T - brk[2]) )
     gamma <- c(rep(gamma_1, brk[1] - 1), rep(gamma_2,  (brk[2] - 1) - (brk[1] - 1) ), rep(gamma_3, T - brk[2]) )
     
+}else if(sim %in% c(7)){
+    T <- 500
+    T.train <- 500
+    brk <- c( floor(T/5*2), floor(T/5*3), floor(T/5*4), T+1)
+    sd.log <- 0.005^0.5
+    # the 2nd cp tends to miss
+    #beta_1 <- 0.10; beta_2 <- 0.05; beta_3 <- 0.08; beta_4 <- 0.05;
+    #gamma_1 <- 0.04; gamma_2 <- 0.06; gamma_3 <- 0.06; gamma_4 <- 0.04; 
+    beta_1 <- 0.10; beta_2 <- 0.06; beta_3 <- 0.04; beta_4 <- 0.05;
+    gamma_1 <- 0.04; gamma_2 <- 0.04; gamma_3 <- 0.06; gamma_4 <- 0.04; 
+    beta <- c(rep(beta_1, brk[1] - 1), rep(beta_2, (brk[2] - 1) - (brk[1] - 1) ), 
+              rep(beta_3, (brk[3] - 1) - (brk[2] - 1) ),rep(beta_4, T - brk[3]) )
+    gamma <- c(rep(gamma_1, brk[1] - 1), rep(gamma_2,  (brk[2] - 1) - (brk[1] - 1) ), 
+               rep(gamma_3,  (brk[3] - 1) - (brk[2] - 1) ),rep(gamma_4, T - brk[3]) )
+    
+}else if(sim %in% c(8)){
+    T <- 500
+    T.train <- 500
+    brk <- c(  floor(T/10*3), floor(T/10*5),floor(T/10*7), floor(T/10*8), T+1)
+    sd.log <- 0.005^0.5
+    beta_1 <- 0.10;  beta_2 <- 0.05; beta_3 <- 0.04; beta_4 <- 0.06; beta_5 <- 0.04;
+    gamma_1 <- 0.04;  gamma_2 <- 0.04; gamma_3 <- 0.06; gamma_4 <- 0.04;  gamma_5 <- 0.06;
+    beta <- c(rep(beta_1, brk[1] - 1), rep(beta_2, (brk[2] - 1) - (brk[1] - 1) ), 
+              rep(beta_3, (brk[3] - 1) - (brk[2] - 1) ),
+              rep(beta_4, (brk[4] - 1) - (brk[3] - 1) ), 
+              rep(beta_5, T - brk[4]) )
+    gamma <- c(rep(gamma_1, brk[1] - 1), rep(gamma_2,  (brk[2] - 1) - (brk[1] - 1) ), 
+               rep(gamma_3,  (brk[3] - 1) - (brk[2] - 1) ), rep(gamma_4, (brk[4] - 1) - (brk[3] - 1) ), 
+               rep(gamma_5, T - brk[4]) )
+    
 }
 
 
 
 if(sim %in% c(1, 3, 5)){
     lambda.1 <- NULL
+}else if(sim == 8){
+    lambda.1 <- c(0.01, 0.005, 0.001, 0.0005, 0.0001)
 }else{
     lambda.1 <- c(0.01, 0.005, 0.001, 0.0005, 0.0001)
     
@@ -117,72 +157,6 @@ if(sim %in% c(3) ){
 
 for ( j.1 in 1:N){
     set.seed(12345*j.1)
-    if( sim %in% c(4)){
-        I <- rep(0, T)
-        R <- rep(0, T)
-        beta_t <- c()
-        gamma_t <- c()
-        I[1] <- 1
-        for(i in 2:T){
-            temp.1 <- rlnorm(1, meanlog = log(beta[i-1]), sdlog = sd.log )
-            temp.2 <- rlnorm(1, meanlog = log(gamma[i-1]), sdlog = sd.log)
-            beta_t <- c(beta_t, temp.1)
-            gamma_t <- c(gamma_t, temp.2)
-            if(i == 2){
-                I[i] <- temp.1*I[i-1] - temp.2[1]*I[i-1] + I[i-1]
-                R[i] <- temp.2[1]*I[i-1] + R[i-1] 
-            }else{
-                I[i] <- temp.1*I[i-1] - temp.2*I[i-1] + I[i-1] 
-                R[i] <- temp.2*I[i-1] + R[i-1]
-            }
-        }
-        plot(1:T, I)
-        plot(1:T, R)
-        
-    }
-    if( sim %in% c(5)){
-        data_e <- rmvnorm(T-1, mean = rep(0, 2), sigma = 1*diag(2))
-        
-        I.neighbor <- rep(0, T)
-        R.neighbor <- rep(0, T)
-        I.neighbor[1] <- 1
-        beta_t.neighbor <- c()
-        gamma_t.neighbor <- c()
-        for(i in 2:T){
-            temp.1 <- beta.neighbor[i-1]
-            temp.2 <- gamma.neighbor[i-1]
-            beta_t.neighbor <- c(beta_t.neighbor, temp.1)
-            gamma_t.neighbor <- c(gamma_t.neighbor, temp.2)
-            I.neighbor[i] <- (temp.1*I.neighbor[i-1] - temp.2*I.neighbor[i-1] + I.neighbor[i-1])
-            R.neighbor[i] <- (temp.2*I.neighbor[i-1] + R.neighbor[i-1])
-        }
-        
-        plot(1:T, I.neighbor)
-        plot(1:T, R.neighbor)
-        
-        I<-rep(0, T)
-        R<-rep(0, T)
-        beta_t <- c()
-        gamma_t <- c()
-        I[1] <- 10
-        for(i in 2:T){
-            temp.1 <- beta[i-1]
-            temp.2 <- gamma[i-1]
-            beta_t <- c(beta_t, temp.1)
-            gamma_t <- c(gamma_t, temp.2)
-            if(i == 2){
-                I[i] <- (temp.1*I[i-1] - temp.2[1]*I[i-1] + I[i-1] + alpha*(I.neighbor[i] - I.neighbor[i-1])) + data_e[1, 1] 
-                R[i] <- (temp.2[1]*I[i-1] + R[i-1] + alpha*(R.neighbor[i] - R.neighbor[i-1]  )) + data_e[1, 2] 
-            }else{
-                I[i] <- (temp.1*I[i-1] - temp.2*I[i-1] + I[i-1] + alpha*(I.neighbor[i-1] - I.neighbor[i-2])) + data_e[i-1, 1] 
-                R[i] <- (temp.2*I[i-1] + R[i-1] + alpha*(R.neighbor[i-1] - R.neighbor[i-2]))  + data_e[i-1, 2]
-            }
-            
-        }
-        
-        plot(1:T, I)
-        plot(1:T, R)
-    }
     if( sim %in% c(1)){
         q.t <- 1; p <- 2
         phi.full <- matrix(0, p, p)
@@ -259,7 +233,7 @@ for ( j.1 in 1:N){
             }
             
         }
-
+        
         
         
         plot(1:(T + t.test), I)
@@ -267,51 +241,6 @@ for ( j.1 in 1:N){
         
         
         
-    }
-    if( sim %in% c(6)){
-        I <- rep(0, T)
-        R <- rep(0, T)
-        beta_t <- c()
-        gamma_t <- c()
-        I[1] <- 1
-        for(i in 2:T){
-            temp.1 <- rlnorm(1, meanlog = log(beta[i-1]), sdlog = sd.log )
-            temp.2 <- rlnorm(1, meanlog = log(gamma[i-1]), sdlog = sd.log)
-            beta_t <- c(beta_t, temp.1)
-            gamma_t <- c(gamma_t, temp.2)
-            if(i == 2 ){
-                I[i] <- temp.1*I[i-1] - temp.2*I[i-1] + I[i-1]
-                R[i] <- temp.2*I[i-1] + R[i-1] 
-            }else{
-                I[i] <- temp.1*I[i-1] - temp.2*I[i-1] + I[i-1] 
-                R[i] <- temp.2*I[i-1] + R[i-1] 
-            }
-        }
-        
-        I.true <- I
-        R.true <- R
-        plot(1:T, I.true)
-        plot(1:T, R.true)
-        # case 1
-        a <- 0.5
-        b <- 0.0
-        # if there is underreport issue
-        for(t in 1:T){
-            rate <- ((t + a*T)/( (1+ a)*T))^2
-            print(rate)
-            if(t < 2){
-                I[t] <- I.true[t]
-                R[t] <- R.true[t]
-                
-            }else{
-                I[t] <- (I.true[t]-I.true[t-1])*rate + I[t-1]
-            }
-            
-            
-        }
-        plot(1:T, 1- ((1:T + a*T)/( (1+ a)*T))^2, ylab = "underreporting rate", xlab = 't')
-        plot(1:T, I)
-        plot(1:T, R)
     }
     if( sim %in% c(2)){
         I <- rep(0, T)
@@ -473,9 +402,166 @@ for ( j.1 in 1:N){
         
         
     }
+    if( sim %in% c(4)){
+        I <- rep(0, T)
+        R <- rep(0, T)
+        beta_t <- c()
+        gamma_t <- c()
+        I[1] <- 1
+        for(i in 2:T){
+            temp.1 <- rlnorm(1, meanlog = log(beta[i-1]), sdlog = sd.log )
+            temp.2 <- rlnorm(1, meanlog = log(gamma[i-1]), sdlog = sd.log)
+            beta_t <- c(beta_t, temp.1)
+            gamma_t <- c(gamma_t, temp.2)
+            if(i == 2){
+                I[i] <- temp.1*I[i-1] - temp.2[1]*I[i-1] + I[i-1]
+                R[i] <- temp.2[1]*I[i-1] + R[i-1] 
+            }else{
+                I[i] <- temp.1*I[i-1] - temp.2*I[i-1] + I[i-1] 
+                R[i] <- temp.2*I[i-1] + R[i-1]
+            }
+        }
+        plot(1:T, I)
+        plot(1:T, R)
+        
+    }
+    if( sim %in% c(5)){
+        data_e <- rmvnorm(T-1, mean = rep(0, 2), sigma = 1*diag(2))
+        
+        I.neighbor <- rep(0, T)
+        R.neighbor <- rep(0, T)
+        I.neighbor[1] <- 1
+        beta_t.neighbor <- c()
+        gamma_t.neighbor <- c()
+        for(i in 2:T){
+            temp.1 <- beta.neighbor[i-1]
+            temp.2 <- gamma.neighbor[i-1]
+            beta_t.neighbor <- c(beta_t.neighbor, temp.1)
+            gamma_t.neighbor <- c(gamma_t.neighbor, temp.2)
+            I.neighbor[i] <- (temp.1*I.neighbor[i-1] - temp.2*I.neighbor[i-1] + I.neighbor[i-1])
+            R.neighbor[i] <- (temp.2*I.neighbor[i-1] + R.neighbor[i-1])
+        }
+        
+        plot(1:T, I.neighbor)
+        plot(1:T, R.neighbor)
+        
+        I<-rep(0, T)
+        R<-rep(0, T)
+        beta_t <- c()
+        gamma_t <- c()
+        I[1] <- 10
+        for(i in 2:T){
+            temp.1 <- beta[i-1]
+            temp.2 <- gamma[i-1]
+            beta_t <- c(beta_t, temp.1)
+            gamma_t <- c(gamma_t, temp.2)
+            if(i == 2){
+                I[i] <- (temp.1*I[i-1] - temp.2[1]*I[i-1] + I[i-1] + alpha*(I.neighbor[i] - I.neighbor[i-1])) + data_e[1, 1] 
+                R[i] <- (temp.2[1]*I[i-1] + R[i-1] + alpha*(R.neighbor[i] - R.neighbor[i-1]  )) + data_e[1, 2] 
+            }else{
+                I[i] <- (temp.1*I[i-1] - temp.2*I[i-1] + I[i-1] + alpha*(I.neighbor[i-1] - I.neighbor[i-2])) + data_e[i-1, 1] 
+                R[i] <- (temp.2*I[i-1] + R[i-1] + alpha*(R.neighbor[i-1] - R.neighbor[i-2]))  + data_e[i-1, 2]
+            }
+            
+        }
+        
+        plot(1:T, I)
+        plot(1:T, R)
+    }
+    if( sim %in% c(6)){
+        I <- rep(0, T)
+        R <- rep(0, T)
+        beta_t <- c()
+        gamma_t <- c()
+        I[1] <- 1
+        for(i in 2:T){
+            temp.1 <- rlnorm(1, meanlog = log(beta[i-1]), sdlog = sd.log )
+            temp.2 <- rlnorm(1, meanlog = log(gamma[i-1]), sdlog = sd.log)
+            beta_t <- c(beta_t, temp.1)
+            gamma_t <- c(gamma_t, temp.2)
+            if(i == 2 ){
+                I[i] <- temp.1*I[i-1] - temp.2*I[i-1] + I[i-1]
+                R[i] <- temp.2*I[i-1] + R[i-1] 
+            }else{
+                I[i] <- temp.1*I[i-1] - temp.2*I[i-1] + I[i-1] 
+                R[i] <- temp.2*I[i-1] + R[i-1] 
+            }
+        }
+        
+        I.true <- I
+        R.true <- R
+        plot(1:T, I.true)
+        plot(1:T, R.true)
+        # case 1
+        a <- 0.5
+        b <- 0.0
+        # if there is underreport issue
+        for(t in 1:T){
+            rate <- ((t + a*T)/( (1+ a)*T))^2
+            print(rate)
+            if(t < 2){
+                I[t] <- I.true[t]
+                R[t] <- R.true[t]
+                
+            }else{
+                I[t] <- (I.true[t]-I.true[t-1])*rate + I[t-1]
+            }
+            
+            
+        }
+        plot(1:T, 1- ((1:T + a*T)/( (1+ a)*T))^2, ylab = "underreporting rate", xlab = 't')
+        plot(1:T, I)
+        plot(1:T, R)
+    }
+    if( sim %in% c(7)){
+        I <- rep(0, T)
+        R <- rep(0, T)
+        beta_t <- c()
+        gamma_t <- c()
+        I[1] <- 1
+        for(i in 2:T){
+            temp.1 <- rlnorm(1, meanlog = log(beta[i-1]), sdlog = sd.log )
+            temp.2 <- rlnorm(1, meanlog = log(gamma[i-1]), sdlog = sd.log)
+            beta_t <- c(beta_t, temp.1)
+            gamma_t <- c(gamma_t, temp.2)
+            if(i == 2){
+                I[i] <- temp.1*I[i-1] - temp.2[1]*I[i-1] + I[i-1]
+                R[i] <- temp.2[1]*I[i-1] + R[i-1] 
+            }else{
+                I[i] <- temp.1*I[i-1] - temp.2*I[i-1] + I[i-1] 
+                R[i] <- temp.2*I[i-1] + R[i-1]
+            }
+        }
+        plot(1:T, I)
+        plot(1:T, R)
+        
+    }
+    if( sim %in% c(8)){
+        I <- rep(0, T)
+        R <- rep(0, T)
+        beta_t <- c()
+        gamma_t <- c()
+        I[1] <- 1
+        for(i in 2:T){
+            temp.1 <- rlnorm(1, meanlog = log(beta[i-1]), sdlog = sd.log )
+            temp.2 <- rlnorm(1, meanlog = log(gamma[i-1]), sdlog = sd.log)
+            beta_t <- c(beta_t, temp.1)
+            gamma_t <- c(gamma_t, temp.2)
+            if(i == 2){
+                I[i] <- temp.1*I[i-1] - temp.2[1]*I[i-1] + I[i-1]
+                R[i] <- temp.2[1]*I[i-1] + R[i-1] 
+            }else{
+                I[i] <- temp.1*I[i-1] - temp.2*I[i-1] + I[i-1] 
+                R[i] <- temp.2*I[i-1] + R[i-1]
+            }
+        }
+        plot(1:T, I)
+        plot(1:T, R)
+        
+    }
     
     
-    if( j.1 == 1 & sim %in% c(1, 4, 5)){
+    if( j.1 == 1 & sim %in% c(1, 4, 5, 7, 8)){
         filename <- paste0("Sim_", sim ,".pdf")
         pdf(filename, width = 11, height = 8.5)
         ylim_max <- 0.15
@@ -496,7 +582,7 @@ for ( j.1 in 1:N){
         print(plot.ar.matrix((phi.full), p = 1))
         dev.off()
     }
-    if( j.1 == 1 & sim %in% c(6, 3)){
+    if( j.1 == 1 & sim %in% c(3, 6)){
         filename <- paste0("Sim_", sim , "_a_", a, "_b_", b, ".pdf")
         pdf(filename, width = 11, height = 8.5)
         par(mar = c(4., 5, 1.5, 1))
@@ -537,10 +623,10 @@ for ( j.1 in 1:N){
         dev.off()
         
     }
-    if( (sim %in% c(5)) & (j.1 == 1)){
+    if( j.1 == 1 &(sim %in% c(5)) ){
         filename <- paste0("Sim_", sim ,"_spatial.pdf")
         pdf(filename, width=11, height=8.5)
-        ylim_max <- 0.2
+        ylim_max <- 0.15
         par(mar = c(4., 5, 1.5, 1))
         plot(1:length(beta_t.neighbor), beta_t.neighbor, type = "l", col = "dark orange", lwd = 3, ylim = c(0,ylim_max),
              xlab = "t", ylab = "rate" , cex.lab = 3 , cex.axis = 3)
@@ -556,117 +642,7 @@ for ( j.1 in 1:N){
     ######## construct varibles ################
     ############################################
 
-    if(sim %in% c(6)){
-        I.obs <- I
-        R.obs <- R
-        a.vals <- c(0.1, 0.25, 0.5, 0.75, 1)
-        b.vals <- c(b)
-        ab.vals <- expand.grid(a.vals, b.vals)
-        MRPE_1_new.full <- c()
-        temp.full <- vector("list", nrow(ab.vals));
-        est.1.full <- vector("list", nrow(ab.vals));
-        for(idx in 1:nrow(ab.vals)){
-            a.val <- ab.vals[idx, 1]
-            b.val <- ab.vals[idx, 2]
-            I <-  I.obs
-            R <-  R.obs
-            for(t in 2:T){
-                rate <- 1/((t + a.val*T)/( (1+ a.val)*T))^2
-                # print(1/rate)
-                I[t] <- (I.obs[t] - I.obs[t-1])*rate + I[t-1]
-                
-            }
-            
-            y.list <- vector("list", T-1);
-            x.list <- vector("list", T-1);
-            
-            for(i in 2:T){
-                y.list[[i-1]] <- matrix(c(R[i] - R[i-1], I[i] - I[i-1]), 2, 1);
-                x.temp <- matrix(0, 2, 2);
-                x.temp[1,2] <- I[i-1];
-                x.temp[2,1] <- I[i-1];
-                x.temp[2,2] <- -I[i-1];
-                x.list[[i-1]] <- x.temp;
-            }
-            
-            Y <- y.list[[1]];
-            for(i in 2:(T-1)){
-                Y <- rbind(Y, y.list[[i]])
-            }
-            
-            X <- x.list[[1]];
-            for(i in 2:(T-1)){
-                X <- rbind(X, x.list[[i]])
-            }
-            
-            beta_t.obs <- sapply(1:length(y.list), function(jjj)  (y.list[[jjj]][1] + y.list[[jjj]][2])/I[jjj])
-            gamma_t.obs <- sapply(1:length(y.list), function(jjj)  y.list[[jjj]][1]/I[jjj])
-            
-            plot(beta_t.obs, ylim = c(0, max(beta_t.obs)))
-            lines(gamma_t.obs)
-            
-            
-            Y_std <- sd(Y)
-            Y_s <- scale(Y, center = FALSE, scale = apply(Y, 2, sd, na.rm = TRUE))
-            
-            X_std <- apply(X, MARGIN = 2, FUN = sd)
-            X_s <- scale(X, center = FALSE, scale = apply(X, 2, sd, na.rm = TRUE))
-            
-            p.x <- ncol(X)
-            p.y <- ncol(Y)
-            n <- nrow(X)
-            
-            tol <- 10^(-4); # tolerance 
-            max.iteration <- 200; # max number of iteration for the LASSO solution
-            method <- c("MLR")
-            #p is the number of variables for each day (I_t and R_t) 
-            p <- 2
-            b_n <- p * b_t
-            HBIC = TRUE
-            gamma.val <- 10
-            temp <- tbfl(method, Y_s, X_s, lambda.1.cv = lambda.1, lambda.2.cv = 0, 
-                         max.iteration = max.iteration, tol = tol, block.size = b_n, HBIC = HBIC, gamma.val = gamma.val)
-            
-            temp.full[[idx]] <- temp
-            
-            cp <- c(1, temp$cp.final, n + 1)
-            m <- length(cp) - 1
-            X.new.new <- matrix(0, nrow = n, ncol = m*p.x)
-            for(i in 1:m){
-                X.new.new[cp[i]: (cp[i+1]-1), (p.x*(i-1)+1) : (p.x*i) ] <- X[cp[i]: (cp[i+1]-1), ]
-            }
-            
-            est.1 <- lm(Y ~ X.new.new  - 1)
-            summary(est.1 )
-            est.1.full[[idx]] <- est.1
-            
-            Y.hat.1 <- est.1$fitted.values
-            R.hat.1<- rep(0, T)
-            R.hat.1[1] <- R[1]
-            for(i in 2:T){
-                R.hat.1[i] <- R[(i - 1)] + Y.hat.1[(i - 2)*2 + 1]
-            }
-            
-            I.hat.1 <- rep(0, T)
-            I.hat.1[1] <- I[1]
-            for(i in 2:T){
-                I.hat.1[i] <- I[(i - 1)] + Y.hat.1[(i - 2)*2 + 2]
-            }
-            
-            MRPE_1_new <- mean(  abs ( (    Y.hat.1[seq(2,n,2)] - Y[seq(2,n,2)] )  /c(Y[seq(2,n,2)])  )[c(Y[seq(2,n,2)]) > 0]  )
-            MRPE_1_new.full <- c(MRPE_1_new.full, MRPE_1_new)
-        }
-        
-        idx <- which.min(MRPE_1_new.full)
-        cp.final <- temp.full[[idx]]$cp.final 
-        cp.date <- c(1:n)[floor( (cp.final-1) / p) + 1]
-        pts.final[[j.1]] <- cp.date;
-        a.final[[j.1]] <- ab.vals[idx, 1]
-        b.final[[j.1]] <- ab.vals[idx, 2]
-        lm.res[[j.1]] <- est.1.full[[idx]]
-        MRPE_Delta.final[[j.1]] <- MRPE_1_new.full
-        
-    }
+    
     if(sim %in% c(2)){
         I.obs <- I
         R.obs <- R
@@ -734,7 +710,8 @@ for ( j.1 in 1:N){
             HBIC = TRUE
             gamma.val <- 10
             temp <- tbfl(method, Y_s, X_s, lambda.1.cv = lambda.1, lambda.2.cv = 0, 
-                         max.iteration = max.iteration, tol = tol, block.size = b_n, HBIC = HBIC, gamma.val = gamma.val)
+                         max.iteration = max.iteration, tol = tol, block.size = b_n, 
+                         HBIC = HBIC, gamma.val = gamma.val)
             
             temp.full[[idx]] <- temp
             
@@ -856,7 +833,8 @@ for ( j.1 in 1:N){
             HBIC = TRUE
             gamma.val <- 10
             temp <- tbfl(method, Y_s.train, X_s.train, lambda.1.cv = lambda.1, lambda.2.cv = 0, 
-                         max.iteration = max.iteration, tol = tol, block.size = b_n,  HBIC = HBIC, gamma.val = gamma.val)
+                         max.iteration = max.iteration, tol = tol, block.size = b_n,  
+                         HBIC = HBIC, gamma.val = gamma.val)
             
             temp.full[[idx]] <- temp
             
@@ -964,7 +942,8 @@ for ( j.1 in 1:N){
         HBIC = TRUE
         gamma.val <- 10
         temp <- tbfl(method, Y_s.train, X_s.train, lambda.1.cv = lambda.1, lambda.2.cv = 0, 
-                     max.iteration = max.iteration, tol = tol, block.size = b_n,  HBIC = HBIC, gamma.val = gamma.val)
+                     max.iteration = max.iteration, tol = tol, block.size = b_n, 
+                     HBIC = HBIC, gamma.val = gamma.val)
         
         #change point date
         cp.final <- temp$cp.final 
@@ -1157,9 +1136,119 @@ for ( j.1 in 1:N){
         
         
     }
-    
-    
-    
+    if(sim %in% c(6)){
+        I.obs <- I
+        R.obs <- R
+        a.vals <- c(0.1, 0.25, 0.5, 0.75, 1)
+        b.vals <- c(b)
+        ab.vals <- expand.grid(a.vals, b.vals)
+        MRPE_1_new.full <- c()
+        temp.full <- vector("list", nrow(ab.vals));
+        est.1.full <- vector("list", nrow(ab.vals));
+        for(idx in 1:nrow(ab.vals)){
+            a.val <- ab.vals[idx, 1]
+            b.val <- ab.vals[idx, 2]
+            I <-  I.obs
+            R <-  R.obs
+            for(t in 2:T){
+                rate <- 1/((t + a.val*T)/( (1+ a.val)*T))^2
+                # print(1/rate)
+                I[t] <- (I.obs[t] - I.obs[t-1])*rate + I[t-1]
+                
+            }
+            
+            y.list <- vector("list", T-1);
+            x.list <- vector("list", T-1);
+            
+            for(i in 2:T){
+                y.list[[i-1]] <- matrix(c(R[i] - R[i-1], I[i] - I[i-1]), 2, 1);
+                x.temp <- matrix(0, 2, 2);
+                x.temp[1,2] <- I[i-1];
+                x.temp[2,1] <- I[i-1];
+                x.temp[2,2] <- -I[i-1];
+                x.list[[i-1]] <- x.temp;
+            }
+            
+            Y <- y.list[[1]];
+            for(i in 2:(T-1)){
+                Y <- rbind(Y, y.list[[i]])
+            }
+            
+            X <- x.list[[1]];
+            for(i in 2:(T-1)){
+                X <- rbind(X, x.list[[i]])
+            }
+            
+            beta_t.obs <- sapply(1:length(y.list), function(jjj)  (y.list[[jjj]][1] + y.list[[jjj]][2])/I[jjj])
+            gamma_t.obs <- sapply(1:length(y.list), function(jjj)  y.list[[jjj]][1]/I[jjj])
+            
+            plot(beta_t.obs, ylim = c(0, max(beta_t.obs)))
+            lines(gamma_t.obs)
+            
+            
+            Y_std <- sd(Y)
+            Y_s <- scale(Y, center = FALSE, scale = apply(Y, 2, sd, na.rm = TRUE))
+            
+            X_std <- apply(X, MARGIN = 2, FUN = sd)
+            X_s <- scale(X, center = FALSE, scale = apply(X, 2, sd, na.rm = TRUE))
+            
+            p.x <- ncol(X)
+            p.y <- ncol(Y)
+            n <- nrow(X)
+            
+            tol <- 10^(-4); # tolerance 
+            max.iteration <- 200; # max number of iteration for the LASSO solution
+            method <- c("MLR")
+            #p is the number of variables for each day (I_t and R_t) 
+            p <- 2
+            b_n <- p * b_t
+            HBIC = TRUE
+            gamma.val <- 10
+            temp <- tbfl(method, Y_s, X_s, lambda.1.cv = lambda.1, lambda.2.cv = 0, 
+                         max.iteration = max.iteration, tol = tol, block.size = b_n, 
+                         HBIC = HBIC, gamma.val = gamma.val)
+            
+            temp.full[[idx]] <- temp
+            
+            cp <- c(1, temp$cp.final, n + 1)
+            m <- length(cp) - 1
+            X.new.new <- matrix(0, nrow = n, ncol = m*p.x)
+            for(i in 1:m){
+                X.new.new[cp[i]: (cp[i+1]-1), (p.x*(i-1)+1) : (p.x*i) ] <- X[cp[i]: (cp[i+1]-1), ]
+            }
+            
+            est.1 <- lm(Y ~ X.new.new  - 1)
+            summary(est.1 )
+            est.1.full[[idx]] <- est.1
+            
+            Y.hat.1 <- est.1$fitted.values
+            R.hat.1<- rep(0, T)
+            R.hat.1[1] <- R[1]
+            for(i in 2:T){
+                R.hat.1[i] <- R[(i - 1)] + Y.hat.1[(i - 2)*2 + 1]
+            }
+            
+            I.hat.1 <- rep(0, T)
+            I.hat.1[1] <- I[1]
+            for(i in 2:T){
+                I.hat.1[i] <- I[(i - 1)] + Y.hat.1[(i - 2)*2 + 2]
+            }
+            
+            MRPE_1_new <- mean(  abs ( (    Y.hat.1[seq(2,n,2)] - Y[seq(2,n,2)] )  /c(Y[seq(2,n,2)])  )[c(Y[seq(2,n,2)]) > 0]  )
+            MRPE_1_new.full <- c(MRPE_1_new.full, MRPE_1_new)
+        }
+        
+        idx <- which.min(MRPE_1_new.full)
+        cp.final <- temp.full[[idx]]$cp.final 
+        cp.date <- c(1:n)[floor( (cp.final-1) / p) + 1]
+        pts.final[[j.1]] <- cp.date;
+        a.final[[j.1]] <- ab.vals[idx, 1]
+        b.final[[j.1]] <- ab.vals[idx, 2]
+        lm.res[[j.1]] <- est.1.full[[idx]]
+        MRPE_Delta.final[[j.1]] <- MRPE_1_new.full
+        
+    }
+    # sim %in% 4, 5, 7, 8
     if(sim != 1 & !(sim %in% c(2, 3, 6))){
         y.list <- vector("list", T-1);
         x.list <- vector("list", T-1);
@@ -1223,15 +1312,17 @@ for ( j.1 in 1:N){
         #p is the number of variables for each day (I_t and R_t) 
         p <- 2
         b_n <- p * b_t
-        if(sim %in% c(4) ){
+        if(sim %in% c(4, 7, 8) ){
             HBIC = FALSE
             temp <- tbfl(method, Y_s, X_s, lambda.1.cv = lambda.1, lambda.2.cv = 0, 
-                         max.iteration = max.iteration, tol = tol, block.size = b_n, HBIC = HBIC)
+                         max.iteration = max.iteration, tol = tol, block.size = b_n,
+                         HBIC = HBIC)
         }else{
             HBIC = TRUE
             gamma.val <- 10
             temp <- tbfl(method, Y_s, X_s, lambda.1.cv = lambda.1, lambda.2.cv = 0, 
-                         max.iteration = max.iteration, tol = tol, block.size = b_n, HBIC = HBIC, gamma.val = gamma.val)
+                         max.iteration = max.iteration, tol = tol, block.size = b_n,
+                         HBIC = HBIC, gamma.val = gamma.val)
         }
         
         #change point date
@@ -1242,7 +1333,6 @@ for ( j.1 in 1:N){
         
         
     }
-    
     
     if(sim %in% c(1, 3)){
         I <- I.obs
@@ -1316,7 +1406,8 @@ for ( j.1 in 1:N){
         HBIC = TRUE
         gamma.val <- 10
         temp <- tbfl(method, Y_s.train, X_s.train, lambda.1.cv = lambda.1, lambda.2.cv = 0, 
-                     max.iteration = max.iteration, tol = tol, block.size = b_n,  HBIC = HBIC, gamma.val = gamma.val)
+                     max.iteration = max.iteration, tol = tol, block.size = b_n,
+                     HBIC = HBIC, gamma.val = gamma.val)
         
         #change point date
         cp.final <- temp$cp.final 
@@ -1328,7 +1419,7 @@ for ( j.1 in 1:N){
         
         
     }
-    if(sim == 4){
+    if(sim %in% c(4, 7, 8)  ){
         cp <- c(1, temp$cp.final, n + 1)
         m <- length(cp) - 1
         X.new.new <- matrix(0, nrow = n, ncol = m*p.x)
@@ -1340,7 +1431,7 @@ for ( j.1 in 1:N){
         
         lm.res[[j.1]] <- est.1
     }
-    if(sim == 5){
+    if(sim %in% c(5)  ){
         cp <- c(1, temp$cp.final, n + 1)
         m <- length(cp) - 1
         X.new.2 <- matrix(0, nrow = n, ncol = m*p.x + 1)
@@ -1354,6 +1445,7 @@ for ( j.1 in 1:N){
         summary(est.2)
         lm.res[[j.1]] <- est.2
     }
+   
     
     if(sim  %in% c(1, 3)){
         
@@ -1701,11 +1793,20 @@ if( sim == 1){
 }
 
 
-
+#from 1 to 8
 tt <- sim
 library(xtable)
 detection.full <- c()
-for(ii in c(4, 8, 12)){
+if(tt %in% c(7, 8)){
+    blocks.set <- c(8)
+    
+}else{
+    blocks.set <- c(4, 8, 12)
+    
+}
+
+
+for(ii in blocks.set){
     filename <- paste0("Sim_", tt, "_bn_", ii,".RData")
     load(filename)
     
@@ -1719,11 +1820,28 @@ for(ii in c(4, 8, 12)){
                 if (  (temp[i] < (brk[1] + (1/5)*(brk[2] - brk[1]) ) ) & (temp[i]> (brk[1] - (1/5)*(brk[1] - 0) ) ) ){
                     pts.check[[j.1]][1] <- temp[i]
                 }
-                if(m0 == 2){
+                if(m0 >=2){
                     if (  (temp[i] < (brk[2] + (1/5)*(brk[3] - brk[2]) ) ) & (temp[i]> (brk[2] - (1/5)*(brk[2] - brk[1]) ) ) ){
                         pts.check[[j.1]][2] <- temp[i]
                     }
                 }
+                if(m0 >=3){
+                    if (  (temp[i] < (brk[2+1] + (1/5)*(brk[3+1] - brk[2+1]) ) ) & (temp[i]> (brk[2+1] - (1/5)*(brk[2+1] - brk[1+1]) ) ) ){
+                        pts.check[[j.1]][3] <- temp[i]
+                    }
+                }
+                if(m0 >=4){
+                    if (  (temp[i] < (brk[2+2] + (1/5)*(brk[3+2] - brk[2+2]) ) ) & (temp[i]> (brk[2+2] - (1/5)*(brk[2+2] - brk[1+2]) ) ) ){
+                        pts.check[[j.1]][4] <- temp[i]
+                    }
+                }
+                if(m0 >=5){
+                    if (  (temp[i] < (brk[2+3] + (1/5)*(brk[3+3] - brk[2+3]) ) ) & (temp[i]> (brk[2+3] - (1/5)*(brk[2+3] - brk[1+3]) ) ) ){
+                        pts.check[[j.1]][5] <- temp[i]
+                    }
+                }
+                
+                
                 
             }
         }
@@ -1798,6 +1916,117 @@ if(sim %in% c(4) ){
     print(table.alpha_res, include.rownames = FALSE, include.colnames = FALSE, sanitize.text.function = identity)
     
 }
+
+
+
+
+rm(list=ls(all=TRUE))
+gc()
+library(xtable)
+sim <- 7
+if(sim %in% c(7) ){
+    tt <- sim
+    alpha.res <- c()
+    for(ii in c(8)){
+        filename <- paste0("Sim_", tt, "_bn_", ii,  ".RData")
+        load(filename)
+        beta_est_1 <- c(); beta_est_2 <- c(); beta_est_3 <- c();beta_est_4 <- c(); 
+        gamma_est_1 <- c(); gamma_est_2 <- c(); gamma_est_3 <- c(); gamma_est_4 <- c(); 
+        for(j.1 in 1:N){
+            temp.coef <- lm.res[[j.1]]$coefficients
+            beta_est_1 <- c(beta_est_1, temp.coef[1])
+            beta_est_2 <- c(beta_est_2, temp.coef[3])
+            beta_est_3 <- c(beta_est_3, temp.coef[5])
+            beta_est_4 <- c(beta_est_4, temp.coef[7])
+            gamma_est_1 <- c(gamma_est_1, temp.coef[2])
+            gamma_est_2 <- c(gamma_est_2, temp.coef[4])
+            gamma_est_3 <- c(gamma_est_3, temp.coef[6])
+            gamma_est_4 <- c(gamma_est_4, temp.coef[8])
+        }
+        alpha.res <- rbind(alpha.res,
+                           c(round(mean(beta_est_1), 4), round(sd(beta_est_1), 4) ),
+                           c(round(mean(beta_est_2), 4), round(sd(beta_est_2), 4) ),
+                           c(round(mean(beta_est_3, na.rm = TRUE), 4), round(sd(beta_est_3, na.rm = TRUE), 4) ),
+                           c(round(mean(beta_est_4, na.rm = TRUE), 4), round(sd(beta_est_4, na.rm = TRUE), 4) ),
+                           c(round(mean(gamma_est_1), 4), round(sd(gamma_est_1), 4) ) ,
+                           c(round(mean(gamma_est_2), 4), round(sd(gamma_est_2), 4) ) ,
+                           c(round(mean(gamma_est_3, na.rm = TRUE), 4), round(sd(gamma_est_3, na.rm = TRUE), 4) ),
+                           c(round(mean(gamma_est_4, na.rm = TRUE), 4), round(sd(gamma_est_4, na.rm = TRUE), 4) )
+                           
+        )
+    }
+    alpha.res <- cbind(c(rep(c(beta_1, beta_2, beta_3, beta_4,
+                               gamma_1, gamma_2, gamma_3, gamma_4), 1)), alpha.res)
+    alpha.res <- cbind(c(rep(c("$\\beta_1$", "$\\beta_2$", "$\\beta_3$", "$\\beta_4$",
+                               "$\\gamma_1$", "$\\gamma_2$", "$\\gamma_3$", "$\\gamma_4$"), 1)), alpha.res)
+    alpha.res <- cbind(c("\\multirow{ 6}{*}{model 1 ($b_n = 8$)}", rep("", 7)), 
+                       alpha.res)
+    table.alpha_res <- xtable(alpha.res, hline.after = c(1, 2), digits = 4)
+    print("estiamted alpha")
+    print(table.alpha_res, include.rownames = FALSE, include.colnames = FALSE, sanitize.text.function = identity)
+    
+}
+
+
+
+
+
+
+rm(list=ls(all=TRUE))
+gc()
+library(xtable)
+sim <- 8
+if(sim %in% c(8) ){
+    tt <- sim
+    alpha.res <- c()
+    for(ii in c(8)){
+        filename <- paste0("Sim_", tt, "_bn_", ii,  ".RData")
+        load(filename)
+        beta_est_1 <- c(); beta_est_2 <- c(); beta_est_3 <- c();beta_est_4 <- c(); beta_est_5 <- c(); 
+        gamma_est_1 <- c(); gamma_est_2 <- c(); gamma_est_3 <- c(); gamma_est_4 <- c(); gamma_est_5 <- c(); 
+        for(j.1 in 1:N){
+            temp.coef <- lm.res[[j.1]]$coefficients
+            beta_est_1 <- c(beta_est_1, temp.coef[1])
+            beta_est_2 <- c(beta_est_2, temp.coef[3])
+            beta_est_3 <- c(beta_est_3, temp.coef[5])
+            beta_est_4 <- c(beta_est_4, temp.coef[7])
+            beta_est_5 <- c(beta_est_5, temp.coef[9])
+            gamma_est_1 <- c(gamma_est_1, temp.coef[2])
+            gamma_est_2 <- c(gamma_est_2, temp.coef[4])
+            gamma_est_3 <- c(gamma_est_3, temp.coef[6])
+            gamma_est_4 <- c(gamma_est_4, temp.coef[8])
+            gamma_est_5 <- c(gamma_est_5, temp.coef[10])
+        }
+        alpha.res <- rbind(alpha.res,
+                           c(round(mean(beta_est_1), 4), round(sd(beta_est_1), 4) ),
+                           c(round(mean(beta_est_2), 4), round(sd(beta_est_2), 4) ),
+                           c(round(mean(beta_est_3, na.rm = TRUE), 4), round(sd(beta_est_3, na.rm = TRUE), 4) ),
+                           c(round(mean(beta_est_4, na.rm = TRUE), 4), round(sd(beta_est_4, na.rm = TRUE), 4) ),
+                           c(round(mean(beta_est_5, na.rm = TRUE), 4), round(sd(beta_est_5, na.rm = TRUE), 4) ),
+                           c(round(mean(gamma_est_1), 4), round(sd(gamma_est_1), 4) ) ,
+                           c(round(mean(gamma_est_2), 4), round(sd(gamma_est_2), 4) ) ,
+                           c(round(mean(gamma_est_3, na.rm = TRUE), 4), round(sd(gamma_est_3, na.rm = TRUE), 4) ),
+                           c(round(mean(gamma_est_4, na.rm = TRUE), 4), round(sd(gamma_est_4, na.rm = TRUE), 4) ),
+                           c(round(mean(gamma_est_5, na.rm = TRUE), 4), round(sd(gamma_est_5, na.rm = TRUE), 4) )
+                           
+        )
+    }
+    alpha.res <- cbind(c(rep(c(beta_1, beta_2, beta_3, beta_4, beta_5,
+                               gamma_1, gamma_2, gamma_3, gamma_4, gamma_5), 1)), alpha.res)
+    alpha.res <- cbind(c(rep(c("$\\beta_1$", "$\\beta_2$", "$\\beta_3$", "$\\beta_4$", "$\\beta_5$",
+                               "$\\gamma_1$", "$\\gamma_2$", "$\\gamma_3$", "$\\gamma_4$" , "$\\gamma_5$" ), 1)), alpha.res)
+    alpha.res <- cbind(c("\\multirow{ 8}{*}{model 1 ($b_n = 8$)}", rep("", 9)), 
+                       alpha.res)
+    table.alpha_res <- xtable(alpha.res, hline.after = c(1, 2), digits = 4)
+    print("estiamted alpha")
+    print(table.alpha_res, include.rownames = FALSE, include.colnames = FALSE, sanitize.text.function = identity)
+    
+}
+
+
+
+
+
 
 
 sim = 6
