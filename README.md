@@ -34,3 +34,7 @@ Latest version of [County-level  COVID-19](counties-05-12.csv) data can be found
 
 
 [County-level distance data](sf12010countydistance100miles.csv) can be found in the [US Census Bureau](http://data.nber.org/distance/2010/sf1/county/sf12010countydistance100miles.csv)
+
+#### Comparison
+
+Code to reproduce the comparison results (eSIR, ANN, LSTM) can be found in the [comparison folder](comparison/).
